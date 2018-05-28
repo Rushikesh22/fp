@@ -61,6 +61,9 @@ int main(int argc, char** argv)
                 fw::blas::gemv<real_t>(CblasRowMajor, CblasNoTrans, m, n, alpha, &a[k * m * n], n, &x[k * n], 1, beta, &y_ref[k * m], 1);
         }
 
+        double max_gflops = 0.0;
+        double max_abs_rel_error = 0.0;
+
         #pragma omp parallel
         {
                 std::vector<real_t> y(0);
@@ -141,12 +144,19 @@ int main(int argc, char** argv)
 
                 #pragma omp critical
                 {
+                        /*
                         std::cout << "... thread " << omp_get_thread_num() << " ..." << std::endl;
                         double gflops = m * (2 * n - 1) / (time / measurement) * 1.0E-9;
                         std::cout << "gflops: " << gflops << std::endl;
                         std::cout << "max abs error: " << max_abs_rel_err << std::endl;
+                        */
+                        max_gflops = std::max(max_gflops, gflops);
+                        max_abs_rel_error = std::max(max_abs_rel_error, max_abs_rel_err);
                 }
         }
+
+        std::cout << "gflops: " << max_gflops << std::endl;
+        std::cout << "max abs error: " << max_abs_rel_error << std::endl;
 
         return 0;
 }
