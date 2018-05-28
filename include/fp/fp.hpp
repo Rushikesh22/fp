@@ -144,8 +144,6 @@ namespace FP_NAMESPACE
         template <std::int32_t BE, std::int32_t BM>
         struct format
         {
-            static_assert(BE > 0 && BM > 0 && (BE + BM) < 16, "error: fp<float>::format -> not implemented for more than 16 bits");
-            
             using type = typename implementation<1 + BE + BM>::type;
 
             static std::size_t get_memory_footprint(const std::size_t n)
@@ -161,9 +159,7 @@ namespace FP_NAMESPACE
         template <std::int32_t BE, std::int32_t BM>
         static void compress(typename format<BE, BM>::type* out, const T* in, const std::size_t n)
         {
-            static_assert(BE > 0 && BM > 0 && (BE + BM) < 16, "error: fp::compress -> not implemented for more than 16 bits");
-
-	        using fp_t = typename format<BE, BM>::type;
+            using fp_t = typename format<BE, BM>::type;
 
             constexpr std::int32_t get_exponent = 0x7F800000;
             constexpr std::int32_t get_mantissa = 0x007FFFFF;
@@ -229,9 +225,7 @@ namespace FP_NAMESPACE
         template <std::int32_t BE, std::int32_t BM>
         static void decompress(T* out, const typename format<BE, BM>::type* in, const std::size_t n)
         {
-            static_assert(BE > 0 && BM > 0 && (BE + BM) < 16, "error: fp::decompress -> not implemented for more than 16 bits");
-
-    	    using fp_t = typename format<BE, BM>::type;
+            using fp_t = typename format<BE, BM>::type;
 
             constexpr std::size_t chunk_bytes = implementation<1 + BE + BM>::chunk_bytes;
             constexpr std::size_t chunk_size = implementation<1 + BE + BM>::chunk_size;
@@ -307,6 +301,51 @@ namespace FP_NAMESPACE
     }
 
     ////////////////////////////////////////////////////////////////////////////////////
+    // NO COMPRESSION: IEEE-754 double type
+    ////////////////////////////////////////////////////////////////////////////////////
+    template <>
+    template <>
+    struct fp<double>::format<11, 52>
+    {
+        using type = double;
+
+        static inline std::size_t get_memory_footprint(const std::size_t n)
+        {
+            return (n * sizeof(type));
+        }
+    };
+
+    template <>
+    template <>
+    inline void fp<double>::compress<11, 52>(double* out, const double* in, const std::size_t n)
+    {
+        if (in == out)
+        {
+            return;
+        }
+
+        for (std::size_t i = 0; i < n; ++i)
+        {
+            out[i] = in[i];
+        }
+    }
+
+    template <>
+    template <>
+    inline void fp<double>::decompress<11, 52>(double* out, const double* in, const std::size_t n)
+    {
+        if (in == out)
+        {
+            return;
+        }
+
+        for (std::size_t i = 0; i < n; ++i)
+        {
+            out[i] = in[i];
+        }
+    }
+
+    ////////////////////////////////////////////////////////////////////////////////////
     // NO COMPRESSION: IEEE-754 single type
     ////////////////////////////////////////////////////////////////////////////////////
     template <>
@@ -352,56 +391,11 @@ namespace FP_NAMESPACE
     }
 
     ////////////////////////////////////////////////////////////////////////////////////
-    // NO COMPRESSION: IEEE-754 doubl type
+    // SPECIALIZATION for 32 bits: 8 bit exponent and 23 bit mantissa
     ////////////////////////////////////////////////////////////////////////////////////
     template <>
     template <>
-    struct fp<double>::format<11, 52>
-    {
-        using type = double;
-
-        static inline std::size_t get_memory_footprint(const std::size_t n)
-        {
-            return (n * sizeof(type));
-        }
-    };
-
-    template <>
-    template <>
-    inline void fp<double>::compress<11, 52>(double* out, const double* in, const std::size_t n)
-    {
-        if (in == out)
-        {
-            return;
-        }
-
-        for (std::size_t i = 0; i < n; ++i)
-        {
-            out[i] = in[i];
-        }
-    }
-
-    template <>
-    template <>
-    inline void fp<double>::decompress<11, 52>(double* out, const double* in, const std::size_t n)
-    {
-        if (in == out)
-        {
-            return;
-        }
-
-        for (std::size_t i = 0; i < n; ++i)
-        {
-            out[i] = in[i];
-        }
-    }
-
-    ////////////////////////////////////////////////////////////////////////////////////
-    // SPECIALIZATION for 16 bits: 8 bit exponent and 7 bit mantissa
-    ////////////////////////////////////////////////////////////////////////////////////
-    template <>
-    template <>
-    struct fp<float>::format<8, 7>
+    struct fp<double>::format<8, 23>
     {
         using type = std::int16_t;
 
@@ -413,28 +407,21 @@ namespace FP_NAMESPACE
 
     template <>
     template <>
-    inline void fp<float>::compress<8, 7>(typename format<8, 7>::type* out, const float* in, const std::size_t n)
+    inline void fp<double>::compress<8, 23>(float* out, const double* in, const std::size_t n)
     {
-        using in_t = typename format<8, 7>::type;
-        const in_t* ptr_in = reinterpret_cast<const in_t*>(in);
-
         for (std::size_t i = 0; i < n; ++i)
         {
-            out[i] = ptr_in[2 * i + 1];
+            out[i] = static_cast<float>(in[i]);
         }
     }
 
     template <>
     template <>
-    inline void fp<float>::decompress<8, 7>(float* out, const typename format<8, 7>::type* in, const std::size_t n)
+    inline void fp<double>::decompress<8, 23>(double* out, const float* in, const std::size_t n)
     {
-        using out_t = typename format<8, 7>::type;
-        out_t* ptr_out = reinterpret_cast<out_t*>(out);
-
         for (std::size_t i = 0; i < n; ++i)
         {
-            ptr_out[2 * i + 0] = 0;
-            ptr_out[2 * i + 1] = in[i];
+            out[i] = static_cast<double>(in[i]);
         }
     }
 
@@ -485,6 +472,48 @@ namespace FP_NAMESPACE
     ////////////////////////////////////////////////////////////////////////////////////
     template <>
     template <>
+    struct fp<float>::format<8, 7>
+    {
+        using type = std::int16_t;
+
+        static inline std::size_t get_memory_footprint(const std::size_t n)
+        {
+            return (n * sizeof(type));
+        }
+    };
+
+    template <>
+    template <>
+    inline void fp<float>::compress<8, 7>(typename format<8, 7>::type* out, const float* in, const std::size_t n)
+    {
+        using in_t = typename format<8, 7>::type;
+        const in_t* ptr_in = reinterpret_cast<const in_t*>(in);
+
+        for (std::size_t i = 0; i < n; ++i)
+        {
+            out[i] = ptr_in[2 * i + 1];
+        }
+    }
+
+    template <>
+    template <>
+    inline void fp<float>::decompress<8, 7>(float* out, const typename format<8, 7>::type* in, const std::size_t n)
+    {
+        using out_t = typename format<8, 7>::type;
+        out_t* ptr_out = reinterpret_cast<out_t*>(out);
+
+        for (std::size_t i = 0; i < n; ++i)
+        {
+            ptr_out[2 * i + 0] = 0;
+            ptr_out[2 * i + 1] = in[i];
+        }
+    }
+
+    ////////////////////////////////////////////////////////////////////////////////////
+    // SPECIALIZATION for 16 bits: 8 bit exponent and 7 bit mantissa
+    ////////////////////////////////////////////////////////////////////////////////////
+    template <>
+    template <>
     struct fp<double>::format<8, 7>
     {
         using type = std::int16_t;
@@ -494,38 +523,7 @@ namespace FP_NAMESPACE
             return (n * sizeof(type));
         }
     };
-/*
-    template <>
-    template <>
-    inline void fp<double>::compress<8, 7>(typename format<8, 7>::type* out, const double* in, const std::size_t n)
-    {
-        using in_t = typename format<8, 7>::type;
-        float tmp;
-        const in_t* ptr_tmp = reinterpret_cast<const in_t*>(&tmp);
 
-        for (std::size_t i = 0; i < n; ++i)
-        {
-            tmp = in[i];
-            out[i] = ptr_tmp[1];
-        }
-    }
-
-    template <>
-    template <>
-    inline void fp<double>::decompress<8, 7>(double* out, const typename format<8, 7>::type* in, const std::size_t n)
-    {
-        using out_t = typename format<8, 7>::type;
-        float tmp;
-        out_t* ptr_tmp = reinterpret_cast<out_t*>(&tmp);
-
-        for (std::size_t i = 0; i < n; ++i)
-        {
-            ptr_tmp[0] = 0;
-            ptr_tmp[1] = in[i];
-            out[i] = tmp;
-        }
-    }
-*/
     template <>
     template <>
     inline void fp<double>::compress<8, 7>(typename format<8, 7>::type* out, const double* in, const std::size_t n)
