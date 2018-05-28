@@ -150,6 +150,7 @@ int main(int argc, char** argv)
                         std::cout << "gflops: " << gflops << std::endl;
                         std::cout << "max abs error: " << max_abs_rel_err << std::endl;
                         */
+                        double gflops = m * (2 * n - 1) / (time / measurement) * 1.0E-9;
                         max_gflops = std::max(max_gflops, gflops);
                         max_abs_rel_error = std::max(max_abs_rel_error, max_abs_rel_err);
                 }
