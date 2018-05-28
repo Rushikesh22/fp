@@ -397,7 +397,7 @@ namespace FP_NAMESPACE
     template <>
     struct fp<double>::format<8, 23>
     {
-        using type = std::int16_t;
+        using type = float;
 
         static inline std::size_t get_memory_footprint(const std::size_t n)
         {

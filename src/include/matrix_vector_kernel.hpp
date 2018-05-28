@@ -11,6 +11,7 @@
 #include <fp/fp_blas.hpp>
 
 using real_t = float;
+//using real_t = double;
 
 #if defined(_BE)
 static constexpr std::int32_t BE = _BE;
