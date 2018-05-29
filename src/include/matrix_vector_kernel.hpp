@@ -29,4 +29,6 @@ using fp_t = typename fw::fp<real_t>::template format<BE, BM>::type;
 
 void full_matrix_vector(const bool transpose, const std::size_t m, const std::size_t n, const real_t alpha, const fp_t* a, const real_t* x, const real_t beta, real_t* y, const std::size_t bs = 32, std::vector<real_t>* buffer = nullptr);
 
+void upper_triangle_matrix_vector(const bool transpose, const std::size_t n, const fp_t* a, const real_t* x, real_t* y, const std::size_t bs = 32, std::vector<real_t>* buffer = nullptr);
+
 #endif

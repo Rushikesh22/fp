@@ -8,6 +8,7 @@
 
 #include <cstdint>
 #include <cstring>
+#include <immintrin.h>
 
 #if !defined(FP_NAMESPACE)
 #define FP_NAMESPACE fw 
@@ -432,7 +433,7 @@ namespace FP_NAMESPACE
     template <>
     struct fp<double>::format<11, 4>
     {
-        using type = std::int16_t;
+        using type = std::uint16_t;
 
         static inline std::size_t get_memory_footprint(const std::size_t n)
         {
@@ -444,12 +445,10 @@ namespace FP_NAMESPACE
     template <>
     inline void fp<double>::compress<11, 4>(typename format<11, 4>::type* out, const double* in, const std::size_t n)
     {
-        using in_t = typename format<11, 4>::type;
-        const in_t* ptr_in = reinterpret_cast<const in_t*>(in);
-
         for (std::size_t i = 0; i < n; ++i)
         {
-            out[i] = ptr_in[4 * i + 3];
+            const std::uint64_t tmp = *reinterpret_cast<const std::uint64_t*>(&in[i]) >> 48;
+            out[i] = tmp;
         }
     }
 
@@ -457,55 +456,10 @@ namespace FP_NAMESPACE
     template <>
     inline void fp<double>::decompress<11, 4>(double* out, const typename format<11, 4>::type* in, const std::size_t n)
     {
-        using out_t = typename format<11, 4>::type;
-        out_t* ptr_out = reinterpret_cast<out_t*>(out);
-
         for (std::size_t i = 0; i < n; ++i)
         {
-            out[i] = 0.0;
-            ptr_out[4 * i + 3] = in[i];
-        }
-    }
-
-    ////////////////////////////////////////////////////////////////////////////////////
-    // SPECIALIZATION for 16 bits: 8 bit exponent and 7 bit mantissa
-    ////////////////////////////////////////////////////////////////////////////////////
-    template <>
-    template <>
-    struct fp<float>::format<8, 7>
-    {
-        using type = std::int16_t;
-
-        static inline std::size_t get_memory_footprint(const std::size_t n)
-        {
-            return (n * sizeof(type));
-        }
-    };
-
-    template <>
-    template <>
-    inline void fp<float>::compress<8, 7>(typename format<8, 7>::type* out, const float* in, const std::size_t n)
-    {
-        using in_t = typename format<8, 7>::type;
-        const in_t* ptr_in = reinterpret_cast<const in_t*>(in);
-
-        for (std::size_t i = 0; i < n; ++i)
-        {
-            out[i] = ptr_in[2 * i + 1];
-        }
-    }
-
-    template <>
-    template <>
-    inline void fp<float>::decompress<8, 7>(float* out, const typename format<8, 7>::type* in, const std::size_t n)
-    {
-        using out_t = typename format<8, 7>::type;
-        out_t* ptr_out = reinterpret_cast<out_t*>(out);
-
-        for (std::size_t i = 0; i < n; ++i)
-        {
-            ptr_out[2 * i + 0] = 0;
-            ptr_out[2 * i + 1] = in[i];
+            const std::uint64_t tmp = static_cast<std::uint64_t>(in[i]) << 48;
+            out[i] = *reinterpret_cast<const double*>(&tmp);
         }
     }
 
@@ -516,7 +470,7 @@ namespace FP_NAMESPACE
     template <>
     struct fp<double>::format<8, 7>
     {
-        using type = std::int16_t;
+        using type = std::uint16_t;
 
         static inline std::size_t get_memory_footprint(const std::size_t n)
         {
@@ -528,25 +482,11 @@ namespace FP_NAMESPACE
     template <>
     inline void fp<double>::compress<8, 7>(typename format<8, 7>::type* out, const double* in, const std::size_t n)
     {
-        constexpr std::size_t len = 64;
-        float tmp[len];
-
-        using in_t = typename format<8, 7>::type;
-        const in_t* ptr_tmp = reinterpret_cast<const in_t*>(&tmp[0]);
-
-        for (std::size_t i = 0; i < n; i += len)
+        for (std::size_t i = 0; i < n; ++i)
         {
-            const std::size_t ii_max = std::min(len, n - i);
-
-            for (std::size_t ii = 0; ii < ii_max; ++ii)
-            {
-                tmp[ii] = in[i + ii];
-            }
-
-            for (std::size_t ii = 0; ii < ii_max; ++ii)
-            {
-                out[i + ii] = ptr_tmp[2 * ii + 1];
-            }
+            const float f_tmp = in[i];
+            const std::uint32_t i_tmp = *reinterpret_cast<const std::uint32_t*>(&f_tmp) >> 16;
+            out[i] = i_tmp;
         }
     }
 
@@ -554,166 +494,103 @@ namespace FP_NAMESPACE
     template <>
     inline void fp<double>::decompress<8, 7>(double* out, const typename format<8, 7>::type* in, const std::size_t n)
     {
-        constexpr std::size_t len = 64;
-        float tmp[len];
-
-        using out_t = typename format<8, 7>::type;
-        out_t* ptr_tmp = reinterpret_cast<out_t*>(&tmp[0]);
-
-        for (std::size_t i = 0; i < n; i += len)
+        for (std::size_t i = 0; i < n; ++i)
         {
-            const std::size_t ii_max = std::min(len, n - i);
+            const std::uint32_t tmp = static_cast<std::uint32_t>(in[i]) << 16;
+            out[i] = static_cast<double>(*reinterpret_cast<const float*>(&tmp));
+        }
+    }
 
-            for (std::size_t ii = 0; ii < ii_max; ++ii)
-            {
-                ptr_tmp[2 * ii + 0] = 0;
-                ptr_tmp[2 * ii + 1] = in[i + ii];
-            }
-            
-            for (std::size_t ii = 0; ii < ii_max; ++ii)
-            {
-                out[i + ii] = tmp[ii];
-            }
+    template <>
+    template <>
+    struct fp<float>::format<8, 7>
+    {
+        using type = std::uint16_t;
+
+        static inline std::size_t get_memory_footprint(const std::size_t n)
+        {
+            return (n * sizeof(type));
+        }
+    };
+
+    template <>
+    template <>
+    inline void fp<float>::compress<8, 7>(typename format<8, 7>::type* out, const float* in, const std::size_t n)
+    {
+        for (std::size_t i = 0; i < n; ++i)
+        {
+            const std::uint32_t tmp = *reinterpret_cast<const std::uint32_t*>(&in[i]) >> 16;
+            out[i] = tmp;
+        }
+    }
+
+    template <>
+    template <>
+    inline void fp<float>::decompress<8, 7>(float* out, const typename format<8, 7>::type* in, const std::size_t n)
+    {
+        for (std::size_t i = 0; i < n; ++i)
+        {
+            const std::uint32_t tmp = static_cast<std::uint32_t>(in[i]) << 16;
+            out[i] = *reinterpret_cast<const float*>(&tmp);
         }
     }
 
     ////////////////////////////////////////////////////////////////////////////////////
-    // SPECIALIZATION for 12 bits
+    // SPECIALIZATIONS: fixed precision 16 bit
     ////////////////////////////////////////////////////////////////////////////////////
     template <>
     template <>
-    struct fp<float>::implementation<12>
+    struct fp<double>::format<0, 16>
     {
-        using type = std::int8_t;
-
-        static constexpr std::size_t chunk_bytes = 3 * 32;
-
-        static constexpr std::size_t chunk_size = 2 * 32;
+        using type = std::uint16_t;
 
         static inline std::size_t get_memory_footprint(const std::size_t n)
         {
-            return ((n + 1) / 2) * 3;
-        }
-
-        static inline void compress_and_store(type* out, std::int32_t* in, const std::size_t n)
-        {
-            // chain compressed words: 2 x 12 bit -> 24 bit -> 3 x 8 bit
-            type* in_compressed = reinterpret_cast<type*>(&in[0]);
-            for (std::size_t i = 0, k = 0; i < n; i += 2, k += 3)
-            {
-                const std::int32_t tmp = in[i] | (in[i + 1] << 12);
-                std::int32_t* in_current = reinterpret_cast<std::int32_t*>(&in_compressed[k]);
-                *in_current = tmp;
-            }
-
-            // store data
-            std::memcpy(&out[0], &in[0], ((n + 1) / 2) * 3);
-        }
-
-        static inline void load_and_decompress(std::int32_t* out, const type* in, const std::size_t n)
-        {
-            // load compressed data and decompress into x[]
-            for (std::size_t i = 0, k = 0; i < n; i += 2, k += 3)
-            {
-                const std::int32_t* in_compressed = reinterpret_cast<const std::int32_t*>(&in[k]);
-                const std::int32_t tmp = *in_compressed;
-                out[i] = (tmp & 0x00000FFF);
-                out[i + 1] = ((tmp >> 12) & 0x00000FFF);
-            }
+            return (2 * sizeof(float) + (n * sizeof(type)));
         }
     };
 
-    ////////////////////////////////////////////////////////////////////////////////////
-    // SPECIALIZATION for 10 bits
-    ////////////////////////////////////////////////////////////////////////////////////
     template <>
     template <>
-    struct fp<float>::implementation<10>
+    inline void fp<double>::compress<0, 16>(typename format<0, 16>::type* out, const double* in, const std::size_t n)
     {
-        using type = std::int8_t;
+        float minimum = scan_min(in, n);
+        float maximum = scan_max(in, n);
 
-        static constexpr std::size_t chunk_bytes = 5 * 32;
+        const float a = minimum;
+        const float b = 0xFFFFU / (maximum - a);
 
-        static constexpr std::size_t chunk_size = 4 * 32;
+        float* fptr_out = reinterpret_cast<float*>(out);
+        fptr_out[0] = a;
+        fptr_out[1] = 1.0F / b;
 
-        static inline std::size_t get_memory_footprint(const std::size_t n)
+        using out_t = typename format<0, 16>::type;
+        out_t* ptr_out = reinterpret_cast<out_t*>(&fptr_out[2]);
+
+        for (std::size_t i = 0; i < n; ++i)
         {
-            return ((n + 3) / 4) * 5;
+            ptr_out[i] = (static_cast<float>(in[i]) - a) * b;
         }
+    }
 
-        static inline void compress_and_store(type* out, std::int32_t* in, const std::size_t n)
-        {
-            // chain compressed words: 4 x 10 bit -> 40 bit -> 5 x 8 bit
-            type* in_compressed = reinterpret_cast<type*>(&in[0]);
-            for (std::size_t i = 0, k = 0; i < n; i += 4, k += 5)
-            {
-                const std::int32_t tmp = in[i] | (in[i + 1] << 10) | (in[i + 2] << 20);
-                std::int64_t* in_current = reinterpret_cast<std::int64_t*>(&in_compressed[k]);
-                *in_current = (static_cast<std::int64_t>(tmp) | (static_cast<std::int64_t>(in[i + 3]) << 30));
-            }
-
-            // store data
-            std::memcpy(&out[0], &in[0], ((n + 3) / 4) * 5);
-        }
-
-        static inline void load_and_decompress(std::int32_t* out, const type* in, const std::size_t n)
-        {
-            // load compressed data and decompress into x[]
-            for (std::size_t i = 0, k = 0; i < n; i += 4, k += 5)
-            {
-                const std::int64_t* in_compressed = reinterpret_cast<const std::int64_t*>(&in[k]);
-                const std::int64_t tmp64 = *in_compressed;
-                const std::int32_t tmp32 = static_cast<std::int32_t>(tmp64);
-                out[i] = (tmp32 & 0x000003FF);
-                out[i + 1] = ((tmp32 >> 10) & 0x000003FF);
-                out[i + 2] = ((tmp32 >> 20) & 0x000003FF);
-                out[i + 3] = static_cast<std::int32_t>((tmp64 >> 30) & 0x00000000000003FF);
-            }
-        }
-    };
-
-    ////////////////////////////////////////////////////////////////////////////////////
-    // SPECIALIZATION for 8 bits
-    ////////////////////////////////////////////////////////////////////////////////////
     template <>
     template <>
-    struct fp<float>::implementation<8>
+    inline void fp<double>::decompress<0, 16>(double* out, const typename format<0, 16>::type* in, const std::size_t n)
     {
-        using type = std::int8_t;
+        const float* fptr_in = reinterpret_cast<const float*>(in);
+        const float a = fptr_in[0];
+        const float b = fptr_in[1];
 
-        static constexpr std::size_t chunk_bytes = 4 * 32;
-
-        static constexpr std::size_t chunk_size = 4 * 32;
-
-        static inline std::size_t get_memory_footprint(const std::size_t n)
+        using in_t = typename format<0, 16>::type;
+        const in_t* ptr_in = reinterpret_cast<const in_t*>(&fptr_in[2]);
+        
+        for (std::size_t i = 0; i < n; ++i)
         {
-            return n;
+            const float tmp = ptr_in[i];
+            out[i] = tmp * b + a;
         }
+    }
 
-        static inline void compress_and_store(type* out, std::int32_t* in, const std::size_t n)
-        {
-            // chain compressed words
-            type* ptr_in = reinterpret_cast<type*>(&in[0]);
-            for (std::size_t i = 0; i < n; ++i)
-            {
-                out[i] = ptr_in[4 * i];
-            }
-        }
-
-        static inline void load_and_decompress(std::int32_t* out, const type* in, const std::size_t n)
-        {
-            // load compressed data and decompress into x[]
-            for (std::size_t i = 0; i < n; ++i)
-            {
-                const std::int32_t tmp = in[i];
-                out[i] = tmp;
-            }
-        }
-    };
-
-    ////////////////////////////////////////////////////////////////////////////////////
-    // SPECIALIZATIONS: fixed precision
-    ////////////////////////////////////////////////////////////////////////////////////
     template <>
     template <>
     struct fp<float>::format<0, 16>
@@ -770,71 +647,85 @@ namespace FP_NAMESPACE
         }
     }
 
+    ////////////////////////////////////////////////////////////////////////////////////
+    // SPECIALIZATIONS: fixed precision 12 bit
+    ////////////////////////////////////////////////////////////////////////////////////
     template <>
     template <>
-    struct fp<double>::format<0, 16>
+    struct fp<double>::format<0, 12>
     {
-        using type = std::uint16_t;
-
-        static constexpr std::size_t chunk_bytes = 2 * 32;
-
-        static constexpr std::size_t chunk_size = 1 * 16;
+        using type = std::uint8_t;
 
         static inline std::size_t get_memory_footprint(const std::size_t n)
         {
-            return (2 * sizeof(float) + (n * sizeof(type)));
+            return (2 * sizeof(float) + ((n + 1) / 2) * 3 * sizeof(type));
         }
     };
 
     template <>
     template <>
-    inline void fp<double>::compress<0, 16>(typename format<0, 16>::type* out, const double* in, const std::size_t n)
+    inline void fp<double>::compress<0, 12>(typename format<0, 12>::type* out, const double* in, const std::size_t n)
     {
         float minimum = scan_min(in, n);
         float maximum = scan_max(in, n);
 
         const float a = minimum;
-        const float b = 0xFFFFU / (maximum - a);
+        const float b = 0xFFFU / (maximum - a);
 
         float* fptr_out = reinterpret_cast<float*>(out);
         fptr_out[0] = a;
         fptr_out[1] = 1.0F / b;
 
-        using out_t = typename format<0, 16>::type;
+        using out_t = typename format<0, 12>::type;
         out_t* ptr_out = reinterpret_cast<out_t*>(&fptr_out[2]);
 
-        for (std::size_t i = 0; i < n; ++i)
+        const std::size_t i_max = (n / 2) * 2;
+
+        for (std::size_t i = 0, k = 0; i < i_max; i += 2, k += 3)
         {
-            ptr_out[i] = (static_cast<float>(in[i]) - a) * b;
+            const std::uint32_t tmp = static_cast<std::uint32_t>((static_cast<float>(in[i + 0]) - a) * b) | (static_cast<std::uint32_t>((static_cast<float>(in[i + 1]) - a) * b) << 12);
+            *reinterpret_cast<std::uint32_t*>(&ptr_out[k]) = tmp;
+        }
+
+        if (n % 2)
+        {
+            ptr_out[(n / 2) * 3] = static_cast<std::uint8_t>((in[n - 1] - a) * b);
         }
     }
 
     template <>
     template <>
-    inline void fp<double>::decompress<0, 16>(double* out, const typename format<0, 16>::type* in, const std::size_t n)
+    inline void fp<double>::decompress<0, 12>(double* out, const typename format<0, 12>::type* in, const std::size_t n)
     {
         const float* fptr_in = reinterpret_cast<const float*>(in);
         const float a = fptr_in[0];
         const float b = fptr_in[1];
 
-        using in_t = typename format<0, 16>::type;
+        using in_t = typename format<0, 12>::type;
         const in_t* ptr_in = reinterpret_cast<const in_t*>(&fptr_in[2]);
         
-        for (std::size_t i = 0; i < n; ++i)
+        const std::size_t i_max = (n / 2) * 2;
+        for (std::size_t i = 0, k = 0; i < i_max; i += 2, k += 3)
         {
-            out[i] = static_cast<double>(ptr_in[i] * b + a);
+            const std::uint32_t i_tmp = *(reinterpret_cast<const std::uint32_t*>(&ptr_in[k]));
+            const float f_tmp_1 = i_tmp & 0xFFF;
+            const float f_tmp_2 = (i_tmp >> 12) & 0xFFF;
+            out[i + 0] = f_tmp_1 * b + a;
+            out[i + 1] = f_tmp_2 * b + a;
+        }
+
+        if (n % 2)
+        {
+            const float f_tmp = static_cast<float>(*(reinterpret_cast<const std::uint8_t*>(&ptr_in[(n / 2) * 3])));
+            out[n - 1] = f_tmp * b + a;
         }
     }
-
+    
     template <>
     template <>
     struct fp<float>::format<0, 12>
     {
         using type = std::uint8_t;
-
-        static constexpr std::size_t chunk_bytes = 3 * 32;
-
-        static constexpr std::size_t chunk_size = 2 * 16;
 
         static inline std::size_t get_memory_footprint(const std::size_t n)
         {
@@ -901,104 +792,14 @@ namespace FP_NAMESPACE
         }
     }
 
-    template <>
-    template <>
-    struct fp<float>::format<0, 8>
-    {
-        using type = std::uint8_t;
-
-        static constexpr std::size_t chunk_bytes = 1 * 32;
-
-        static constexpr std::size_t chunk_size = 1 * 16;
-
-        static inline std::size_t get_memory_footprint(const std::size_t n)
-        {
-            return (2 * sizeof(float) + (n * sizeof(type)));
-        }
-    };
-
-    template <>
-    template <>
-    inline void fp<float>::compress<0, 8>(typename format<0, 8>::type* out, const float* in, const std::size_t n)
-    {
-        float minimum = scan_min(in, n);
-        float maximum = scan_max(in, n);
-
-        const float a = minimum;
-        const float b = 0xFFU / (maximum - a);
-
-        float* fptr_out = reinterpret_cast<float*>(out);
-        fptr_out[0] = a;
-        fptr_out[1] = 1.0F / b;
-
-        using out_t = typename format<0, 8>::type;
-        out_t* ptr_out = reinterpret_cast<out_t*>(&fptr_out[2]);
-
-        for (std::size_t i = 0; i < n; ++i)
-        {
-            ptr_out[i] = (in[i] - a) * b;
-        }
-    }
-
-    template <>
-    template <>
-    inline void fp<float>::decompress<0, 8>(float* out, const typename format<0, 8>::type* in, const std::size_t n)
-    {
-        const float* fptr_in = reinterpret_cast<const float*>(in);
-        const float a = fptr_in[0];
-        const float b = fptr_in[1];
-
-        using in_t = typename format<0, 8>::type;
-        const in_t* ptr_in = reinterpret_cast<const in_t*>(&fptr_in[2]);
-        
-        for (std::size_t i = 0; i < n; ++i)
-        {
-            out[i] = ptr_in[i] * b + a;
-        } 
-        /*
-        const float* fptr_in = reinterpret_cast<const float*>(in);
-        const float a = fptr_in[0];
-        const float b = fptr_in[1];
-
-        using in_t = typename format<0, 8>::type;
-        const in_t* ptr_in = reinterpret_cast<const in_t*>(&fptr_in[2]);
-        
-        constexpr std::size_t bs = 32;
-        std::int32_t buffer[bs];
-        for (std::size_t ii = 0; ii < bs; ++ii)
-        {
-            buffer[ii] = 0;
-        }
-        std::uint8_t* ptr_buffer = reinterpret_cast<std::uint8_t*>(&buffer[0]);
-
-        const size_t i_max = (n / bs) * bs;
-        for (std::size_t i = 0; i < i_max; i += bs)
-        {
-            for (std::size_t ii = 0; ii < bs; ++ii)
-            {
-                ptr_buffer[4 * ii] = ptr_in[i + ii];
-            }
-            for (std::size_t ii = 0; ii < bs; ++ii)
-            {
-                out[i + ii] = buffer[ii] * b + a;
-            }
-        }
-        for (std::size_t i = i_max; i < n; ++i)
-        { 
-            out[i] = ptr_in[i] * b + a;
-        }
-        */
-    }
-
+    ////////////////////////////////////////////////////////////////////////////////////
+    // SPECIALIZATIONS: fixed precision 8 bit
+    ////////////////////////////////////////////////////////////////////////////////////
     template <>
     template <>
     struct fp<double>::format<0, 8>
     {
         using type = std::uint8_t;
-
-        static constexpr std::size_t chunk_bytes = 1 * 32;
-
-        static constexpr std::size_t chunk_size = 1 * 16;
 
         static inline std::size_t get_memory_footprint(const std::size_t n)
         {
@@ -1042,8 +843,62 @@ namespace FP_NAMESPACE
         
         for (std::size_t i = 0; i < n; ++i)
         {
-            out[i] = static_cast<double>(ptr_in[i] * b + a);
+            const float tmp = ptr_in[i];
+            out[i] = tmp * b + a;
         }
+    }
+
+    template <>
+    template <>
+    struct fp<float>::format<0, 8>
+    {
+        using type = std::uint8_t;
+
+        static inline std::size_t get_memory_footprint(const std::size_t n)
+        {
+            return (2 * sizeof(float) + (n * sizeof(type)));
+        }
+    };
+
+    template <>
+    template <>
+    inline void fp<float>::compress<0, 8>(typename format<0, 8>::type* out, const float* in, const std::size_t n)
+    {
+        float minimum = scan_min(in, n);
+        float maximum = scan_max(in, n);
+
+        const float a = minimum;
+        const float b = 0xFFU / (maximum - a);
+
+        float* fptr_out = reinterpret_cast<float*>(out);
+        fptr_out[0] = a;
+        fptr_out[1] = 1.0F / b;
+
+        using out_t = typename format<0, 8>::type;
+        out_t* ptr_out = reinterpret_cast<out_t*>(&fptr_out[2]);
+
+        for (std::size_t i = 0; i < n; ++i)
+        {
+            ptr_out[i] = (in[i] - a) * b;
+        }
+    }
+
+    template <>
+    template <>
+    inline void fp<float>::decompress<0, 8>(float* out, const typename format<0, 8>::type* in, const std::size_t n)
+    {
+        const float* fptr_in = reinterpret_cast<const float*>(in);
+        const float a = fptr_in[0];
+        const float b = fptr_in[1];
+
+        using in_t = typename format<0, 8>::type;
+        const in_t* ptr_in = reinterpret_cast<const in_t*>(&fptr_in[2]);
+        
+        for (std::size_t i = 0; i < n; ++i)
+        {
+            const float tmp = ptr_in[i];
+            out[i] = tmp * b + a;
+        } 
     }
 }
 
