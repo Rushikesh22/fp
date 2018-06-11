@@ -15,8 +15,8 @@ constexpr std::size_t n_default = 256;
 constexpr std::size_t num_matrices_default = 100;
 constexpr std::size_t bs_default = 32;
 
-constexpr std::size_t warmup = 1;
-constexpr std::size_t measurement = 1;
+constexpr std::size_t warmup = 5;
+constexpr std::size_t measurement = 10;
 
 int main(int argc, char** argv)
 {
@@ -129,8 +129,11 @@ int main(int argc, char** argv)
                 double time;
                 if (BE == fw::fp<real_t>::default_bits_exponent() && BM == fw::fp<real_t>::default_bits_mantissa())
                 {
-                        std::cout << "compression: no" << std::endl;
-                        std::cout << "matrix memory footprint: " << num_matrices * m * n * sizeof(real_t) / (1024 * 1024) << " MiB" << std::endl;
+                        #pragma omp master
+                        {
+                                std::cout << "compression: no" << std::endl;
+                                std::cout << "matrix memory footprint: " << num_matrices * m * n * sizeof(real_t) / (1024 * 1024) << " MiB" << std::endl;
+                        }
 
                         #pragma omp barrier
 
@@ -172,9 +175,12 @@ int main(int argc, char** argv)
                 }
                 else
                 {
-                        std::cout << "compression: yes" << std::endl;
-                        std::cout << "matrix memory footprint: " << num_matrices * a_compressed_num_elements * sizeof(fp_t) / (1024 * 1024) << " MiB" << std::endl;
-                        std::cout << "block size: " << bs << std::endl;
+                        #pragma omp master
+                        {
+                                std::cout << "compression: yes" << std::endl;
+                                std::cout << "matrix memory footprint: " << num_matrices * a_compressed_num_elements * sizeof(fp_t) / (1024 * 1024) << " MiB" << std::endl;
+                                std::cout << "block size: " << bs << std::endl;
+                        }
                         std::vector<real_t> buffer(bs * bs);
 
                         #pragma omp barrier
