@@ -42,7 +42,7 @@ namespace BLAS_NAMESPACE
 			cblas_sgemv(__Order, __TransA, __M, __N, __alpha, __A, __lda, __X, __incX, __beta, __Y, __incY);
 		}
 
-		// BLAS call wrapper: triangular matrix vector multiply
+		// BLAS call wrapper: triangular packed matrix vector multiply
 		template <typename T>
 		static void tpmv(const CBLAS_LAYOUT __Order, const CBLAS_UPLO __Uplo, const CBLAS_TRANSPOSE __TransA, const CBLAS_DIAG __Diag,
 			const std::size_t __N, const T *__Ap, T *__X, const std::size_t __incX);
@@ -59,6 +59,25 @@ namespace BLAS_NAMESPACE
 			const std::size_t __N, const float *__Ap, float *__X, const std::size_t __incX)
 		{
 			cblas_stpmv(__Order, __Uplo, __TransA, __Diag, __N, __Ap, __X, __incX);
+		}
+
+		// BLAS call wrapper: triangular packed solve
+		template <typename T>
+		static void tpsv(const CBLAS_LAYOUT __Order, const CBLAS_UPLO __Uplo, const CBLAS_TRANSPOSE __TransA, const CBLAS_DIAG __Diag,
+			const std::size_t __N, const T *__Ap, T *__X, const std::size_t __incX);
+
+		template <>
+		void tpsv<double>(const CBLAS_LAYOUT __Order, const CBLAS_UPLO __Uplo, const CBLAS_TRANSPOSE __TransA, const CBLAS_DIAG __Diag,
+			const std::size_t __N, const double *__Ap, double *__X, const std::size_t __incX)
+		{
+			cblas_dtpsv(__Order, __Uplo, __TransA, __Diag, __N, __Ap, __X, __incX);
+		}
+
+		template <>
+		void tpsv<float>(const CBLAS_LAYOUT __Order, const CBLAS_UPLO __Uplo, const CBLAS_TRANSPOSE __TransA, const CBLAS_DIAG __Diag,
+			const std::size_t __N, const float *__Ap, float *__X, const std::size_t __incX)
+		{
+			cblas_stpsv(__Order, __Uplo, __TransA, __Diag, __N, __Ap, __X, __incX);
 		}
         }
 }

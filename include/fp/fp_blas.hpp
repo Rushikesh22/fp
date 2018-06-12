@@ -424,6 +424,17 @@ namespace FP_NAMESPACE
 		template <>
 		struct blocked_matrix<matrix_type::upper>
 		{
+			static std::size_t get_offset_upper(const std::size_t j, const std::size_t i, const std::size_t n, const std::size_t d, const std::size_t f)
+			{
+				const std::size_t blocks_total = (n * (n + 1)) / 2;
+				const std::size_t blocks_j_to_n = ((n - j) * (n - j + 1)) / 2;
+				const std::size_t blocks_0_to_j = blocks_total - blocks_j_to_n;
+				const std::size_t blocks_diagonal = (i > j ? j + 1 : j);
+				const std::size_t blocks_i = (i - j);
+				const std::size_t blocks_full = (blocks_0_to_j + blocks_i - blocks_diagonal);
+				
+				return (blocks_full * f + blocks_diagonal * d);
+			}
 
 		public:
 
@@ -804,11 +815,11 @@ namespace FP_NAMESPACE
 			//! \tparam BM number of bits in the mantissa
 			//! \param transpose
 			//! \param bs block size the matrix was packed with
-			//! \param m number of rows
-			//! \param n number of columns
+			//! \param n number of rows / columns
 			//! \param alpha multiply matrix 'a' by this value
 			//! \param a_compressed compressed matrix
 			//! \param x input vector
+			//! \param beta
 			//! \param y output vector
 			//! \param external_buffer scratch pad memory for intermediate operations
 			//! \return number of elements decompressed
@@ -1048,6 +1059,133 @@ namespace FP_NAMESPACE
 				}
 
 				return a_offset;
+			}
+
+			//! \brief Triangular solve
+			//!
+			//! a(T) * x = y
+			//!
+			//! \tparam T data type (of the matrix elements)
+			//! \tparam BE number of bits in the exponent
+			//! \tparam BM number of bits in the mantissa
+			//! \param transpose
+			//! \param bs block size the matrix was packed with
+			//! \param n number of rows / columns
+			//! \param a_compressed compressed matrix
+			//! \param x input vector
+			//! \param y output vector
+			//! \param external_buffer scratch pad memory for intermediate operations
+			//! \return number of elements decompressed
+			template <typename T, std::int32_t BE = fp<T>::default_bits_exponent(), std::int32_t BM = fp<T>::default_bits_mantissa()>
+			static std::size_t psv(const bool transpose, const std::size_t bs, const std::size_t n, const typename fp<T>::template format<BE, BM>::type* a_compressed, T* x, std::vector<T>* external_buffer = nullptr)
+			{
+				constexpr T f_0 = static_cast<T>(0.0);
+				constexpr T f_1 = static_cast<T>(1.0);
+				constexpr T f_m1 = static_cast<T>(-1.0);
+
+				// return immediately if the matrix has zero extent
+				if (n == 0)
+				{
+					return 0;
+				}
+
+				using fp_t = typename fp<T>::template format<BE, BM>::type;
+
+				if (n > bs)
+				{
+					// if the matrix extent is larger than the block size	
+					//
+					// a) determine the number of blocks
+					const std::size_t n_blocks = (n + bs - 1) / bs;
+					// b) determine the memory foot prints of the different kinds of blocks
+					const std::size_t num_elements_full_block = (fw::fp<T>::template format<BE, BM>::get_memory_footprint(bs * bs) + sizeof(fp_t) - 1) / sizeof(fp_t);
+					const std::size_t num_elements_triangle_block = (fw::fp<T>::template format<BE, BM>::get_memory_footprint(bs * (bs + 1) / 2) + sizeof(fp_t) - 1) / sizeof(fp_t);
+
+					// a scratch pad memory is needed to hold subsequent intermediate data
+					std::vector<T> local_buffer(0);
+					// use the external or the local one
+					std::vector<T>& buffer = (external_buffer != nullptr ? (*external_buffer) : local_buffer);
+					// we need to reserve memory for both 'tmp_y' and the matrix decompression
+					buffer.reserve(bs + bs * bs);
+					// set pointer 'a' (decompressed matrix) appropriately
+					T* a = &buffer[bs];
+					// set pointer 'tmp_y' (for the matrix-vector multiplication)
+					T* y_tmp = &buffer[0];
+	
+					if (transpose)
+					{
+						for (std::size_t j = 0; j < n_blocks; ++j)
+						{
+							const std::size_t j_start = j * bs;
+							const std::size_t j_end = std::min(n, j_start + bs);
+							const std::size_t mm = j_end - j_start;
+
+							std::size_t a_offset = get_offset_upper(0, j, n_blocks, num_elements_triangle_block, num_elements_full_block);
+							for (std::size_t i = 0; i < j; ++i)
+							{
+								const std::size_t i_start = i * bs;
+								const std::size_t i_end = std::min(n, i_start + bs);
+								const std::size_t nn = i_end - i_start;
+
+								// decompress the block
+								fp<T>::template decompress<BE, BM>(a, &a_compressed[a_offset], mm * nn);
+								a_offset += ((n_blocks - (i + 2)) * num_elements_full_block + num_elements_triangle_block);
+								fw::blas::gemv<T>(CblasRowMajor, CblasTrans, nn, mm, f_m1, &a[0], mm, &x[i * bs], 1, f_1, &x[j * bs], 1);
+							}
+
+							a_offset += (j > 0 ? (num_elements_full_block - num_elements_triangle_block) : 0);
+							fp<T>::template decompress<BE, BM>(a, &a_compressed[a_offset], (mm * (mm + 1)) / 2);
+							fw::blas::tpsv<T>(CblasRowMajor, CblasUpper, CblasTrans, CblasNonUnit, mm, &a[0], &x[j * bs], 1);
+						}
+
+					}
+					else
+					{
+						for (std::size_t j = (n_blocks - 1); j >= 0; --j)
+						{
+							const std::size_t j_start = j * bs;
+							const std::size_t j_end = std::min(n, j_start + bs);
+							const std::size_t mm = j_end - j_start;
+
+							const std::size_t a_offset = get_offset_upper(j, j, n_blocks, num_elements_triangle_block, num_elements_full_block);
+							for (std::size_t i = (j + 1), o = (a_offset + num_elements_triangle_block); i < n_blocks; ++i, o += num_elements_full_block)
+							{
+								const std::size_t i_start = i * bs;
+								const std::size_t i_end = std::min(n, i_start + bs);
+								const std::size_t nn = i_end - i_start;
+
+								fp<T>::template decompress<BE, BM>(a, &a_compressed[o], mm * nn);
+								fw::blas::gemv<T>(CblasRowMajor, CblasNoTrans, mm, nn, f_m1, &a[0], nn, &x[i * bs], 1, f_1, &x[j * bs], 1);
+							}
+
+							fp<T>::template decompress<BE, BM>(a, &a_compressed[a_offset], (mm * (mm + 1)) / 2);
+							fw::blas::tpsv<T>(CblasRowMajor, CblasUpper, CblasNoTrans, CblasNonUnit, mm, &a[0], &x[j * bs], 1);
+
+							if (j == 0)
+							{
+								break;
+							}
+						}
+					}
+				}
+				else
+				{
+					// the matrix extent is smaller than the block size, however,
+					// we still need to copy to the scratch pad memory, as 'lda' might
+					// incorporate some padding
+					std::vector<T> local_buffer(0);
+					// use the external or the local one
+					std::vector<T>& buffer = (external_buffer != nullptr ? (*external_buffer) : local_buffer);
+					// adapt the size of the scratch pad
+					buffer.reserve((n * (n + 1)) / 2);
+					T* a = &buffer[0];
+
+					// compress the upper matrix and move on to the next chunk of the output buffer
+					fp<T>::template decompress<BE, BM>(a, &a_compressed[0], (n * (n + 1)) / 2);
+					fw::blas::tpsv<T>(CblasRowMajor, CblasUpper, (transpose ? CblasTrans : CblasNoTrans), CblasNonUnit, n, &a[0], &x[0], 1);
+				}
+
+				return num_elements<T, BE, BM>(n, bs);
 			}
 		};
 	}
