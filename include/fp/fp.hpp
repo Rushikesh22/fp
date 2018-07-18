@@ -182,22 +182,22 @@ namespace FP_NAMESPACE
 
         //! \brief Test for exponent and mantissa bits both are larger than 0, and that they add up to at most 15
         //!
-        //! \param BE bits exponent
-        //! \param BM bits mantissa
+        //! \param be bits exponent
+        //! \param bm bits mantissa
         //! \return condition is satisfied or not
-        static constexpr bool default_case(const std::uint32_t BE, const std::uint32_t BM)
+        static constexpr bool default_case(const std::uint32_t be, const std::uint32_t bm)
         {
-            return BE > 0 && BM > 0 && (BE + BM) < max_bits_compression;
+            return (be > 0) && (bm > 0) && ((be + bm) < max_bits_compression);
         }
 
         //! \brief Test for exponent and mantissa bits match any of the special cases that are defined outside the class
         //!
-        //! \param BE bits exponent
-        //! \param BM bits mantissa
+        //! \param be bits exponent
+        //! \param bm bits mantissa
         //! \return special case or not
-        static constexpr bool special_case(const std::uint32_t BE, const std::uint32_t BM)
+        static constexpr bool special_case(const std::uint32_t be, const std::uint32_t bm)
         {
-            return (BE == 8 && BM == 7) || (BE == 0 && (BM == 7 || BM == 11 || BM == 15));
+            return (be == 8 && bm == 7) || (be == 0 && (bm == 7 || bm == 11 || bm == 15));
         }
 
         // bit masks to extract the exponent of a compressed floating point representation with ['BE']['BM'] bits
