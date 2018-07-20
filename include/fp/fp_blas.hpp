@@ -6,6 +6,7 @@
 #if !defined(FP_BLAS_HPP)
 #define FP_BLAS_HPP
 
+#include <iostream>
 #include <cstdlib>
 #include <cstdint>
 #include <vector>
@@ -20,6 +21,485 @@
 
 namespace FP_NAMESPACE
 {
+	namespace blas
+	{
+		//! Matrix types: lower, upper
+		enum class triangular_matrix_type { lower = 0, upper = 1 };
+
+		//! \brief General matrix
+		//!
+		//! \tparam T data type (of the matrix elements)
+		//! \tparam BE number of bits in the exponent
+		//! \tparam BM number of bits in the mantissa
+		template <typename T, std::uint32_t BE = fp<T>::default_bits_exponent(), std::uint32_t BM = fp<T>::default_bits_mantissa()>
+		class matrix
+		{
+            static_assert(std::is_same<T, double>::value || std::is_same<T, float>::value, "error: only 'double' and 'float' type is supported");
+
+        protected:
+    
+    		using fp_type = typename fp<T>::template format<BE, BM>::type;
+
+            // extent of the matrix: 'm' rows and 'n' columns
+			const std::size_t m;
+			const std::size_t n;
+			
+            // (default) block size
+			static constexpr std::size_t bs_default = 64;
+            const std::size_t bs;
+
+            // compressed matrix
+            std::vector<fp_type> compressed_data;
+
+            const std::size_t num_blocks_a;
+            const std::size_t num_elements_a;
+
+            const std::size_t num_blocks_b;
+            const std::size_t num_elements_b;
+
+            const std::size_t num_blocks_c;
+            const std::size_t num_elements_c;
+
+            const std::size_t num_blocks_d;
+            const std::size_t num_elements_d;
+
+            const std::size_t num_elements;
+
+            // some constants
+            static constexpr T f_0 = static_cast<T>(0.0);
+            static constexpr T f_1 = static_cast<T>(1.0);
+
+            // constructor that can be called by triangular_matrix class
+            matrix(const T* data, const std::size_t n, triangular_matrix_type MT = triangular_matrix_type::upper, const std::size_t bs = bs_default)
+                :
+                m(n),
+                n(n),
+                bs(bs),
+                //  a b b | c
+                //  0 a b | c
+                //  0 0 a | c
+                // -------+---
+                //  0 0 0 | d
+                num_blocks_a((n / bs)),
+                num_elements_a(fp<T>::template format<BE, BM>::memory_footprint_elements((bs * (bs + 1)) / 2)),                
+                num_blocks_b((((n / bs) * ((n / bs) + 1)) / 2) - (n / bs)),
+                num_elements_b(fp<T>::template format<BE, BM>::memory_footprint_elements(bs * bs)),
+                num_blocks_c((n / bs) * (((n + bs - 1) / bs) - (n / bs))),
+                num_elements_c(fp<T>::template format<BE, BM>::memory_footprint_elements(bs * (n - (n / bs)))),
+                num_blocks_d(((n + bs - 1) / bs) - (n / bs)),
+                num_elements_d(fp<T>::template format<BE, BM>::memory_footprint_elements(((n - (n / bs)) * (n - (n / bs) + 1)) / 2)),
+                num_elements(num_blocks_a * num_elements_a + num_blocks_b * num_elements_b + num_blocks_c * num_elements_c + num_blocks_d * num_elements_d)
+            {
+                // allocate memory for the compressed matrix
+                compressed_data.reserve(num_elements);
+
+                // compress the matrix block by block
+                T buffer[bs * bs];
+
+                std::size_t k = 0;
+                for (std::size_t j = 0; j < n; j += bs)
+                {
+                    const std::size_t i_start = (MT == triangular_matrix_type::upper ? j : 0);
+                    const std::size_t i_end = (MT == triangular_matrix_type::upper ? n : (j + 1));
+
+                    for (std::size_t i = i_start; i < i_end; i += bs)
+                    {
+                        const std::size_t mm = std::min(m - j, bs);
+                        const std::size_t nn = std::min(n - i, bs);
+
+                        // copy blocks into the 'buffer'
+                        for (std::size_t jj = 0, kk = 0; jj < mm; ++jj)
+                        {
+                            // diagonal blocks
+                            if (i == j)
+                            {
+                                const std::size_t ii_start = (MT == triangular_matrix_type::upper ? jj : 0);
+                                const std::size_t ii_end = (MT == triangular_matrix_type::upper ? nn : (jj + 1));
+
+                                for (std::size_t ii = ii_start; ii < ii_end; ++ii, ++kk)
+                                {
+                                    buffer[kk] = data[(j + jj) * n + (i + ii)];
+                                }
+                            }
+                            // non-diagonal blocks
+                            else
+                            {
+                                #pragma omp simd
+                                for (std::size_t ii = 0; ii < nn; ++ii)
+                                {
+                                    buffer[jj * nn + ii] = data[(j + jj) * n + (i + ii)];
+                                }
+                            }
+                        }    
+
+                        // compress the 'buffer'
+                        fp<T>::template compress<BE, BM>(&compressed_data[k], buffer, (i == j ? ((nn * (nn + 1)) / 2) : mm * nn));
+
+                        // move on to the next block
+                        if (i == j)
+                        {
+                            k += num_elements_a;
+                        }
+                        else
+                        {
+                            const std::size_t ij = (MT == triangular_matrix_type::upper ? i : j);
+                            k += ((n - ij) < bs ? num_elements_c : num_elements_b);
+                        }
+                    }
+                }
+            }
+
+            // internal methods
+            virtual void apply(const bool transpose, const T alpha, const T* x, T* y) const
+            {
+                // allocate local memory
+                std::vector<T> buffer_a;
+                buffer_a.reserve(bs * bs);
+                
+                // apply matrix to 'x' and add the result to 'y'
+                for (std::size_t j = 0, k = 0; j < m; j += bs)
+                {
+                    const std::size_t k_inc = ((m - j) < bs ? num_elements_c : num_elements_a);
+
+                    for (std::size_t i = 0; i < n; i += bs)
+                    {
+                        const std::size_t mm = std::min(m - j, bs);
+                        const std::size_t nn = std::min(n - i, bs);
+
+                        // decompress the block
+                        fp<T>::template decompress<BE, BM>(&buffer_a[0], &compressed_data[k], mm * nn);
+
+                        // apply general blas matrix vector multiplication
+                        gemv(CblasRowMajor, (transpose ? CblasTrans : CblasNoTrans), mm, nn, alpha, &buffer_a[0], nn, (transpose ? &x[j] : &x[i]), 1, f_1, (transpose ? &y[i] : &y[j]), 1);
+                        
+                        // move on to the next block
+                        k += ((n - i) < bs ? num_elements_b : k_inc);
+                    }
+                }
+            }
+
+		public:
+
+			matrix() = delete;
+
+			matrix(const T* data, const std::size_t m, const std::size_t n, const std::size_t bs = bs_default)
+				:
+				m(m),
+				n(n),
+				bs(bs),
+                //  a a a | b
+                //  a a a | b
+                // -------+---
+                //  c c c | d
+                num_blocks_a((m / bs) * (n / bs)),
+                num_elements_a(fp<T>::template format<BE, BM>::memory_footprint_elements(bs * bs)),
+                num_blocks_b((m / bs) * (((n + bs - 1) / bs) - (n / bs))),
+                num_elements_b(fp<T>::template format<BE, BM>::memory_footprint_elements(bs * (n - (n / bs) * bs))),
+                num_blocks_c((((m + bs - 1) / bs) - (m / bs)) * (n / bs)),
+                num_elements_c(fp<T>::template format<BE, BM>::memory_footprint_elements((m - (m / bs) * bs) * bs)),
+                num_blocks_d((((m + bs - 1) / bs) - (m / bs)) * (((n + bs - 1) / bs) - (n / bs))),
+                num_elements_d(fp<T>::template format<BE, BM>::memory_footprint_elements((m - (m / bs) * bs) * (n - (n / bs) * bs))),
+                num_elements(num_blocks_a * num_elements_a + num_blocks_b * num_elements_b + num_blocks_c * num_elements_c + num_blocks_d * num_elements_d)
+			{
+                // allocate memory for the compressed matrix
+                compressed_data.reserve(num_elements);
+
+                // compress the matrix block by block
+                std::vector<T> buffer;
+                buffer.reserve(bs * bs);
+                
+                for (std::size_t j = 0, k = 0; j < m; j += bs)
+                {
+                    const std::size_t k_inc = ((m - j) < bs ? num_elements_c : num_elements_a);
+                
+                    for (std::size_t i = 0; i < n; i += bs)
+                    {
+                        const std::size_t mm = std::min(m - j, bs);
+                        const std::size_t nn = std::min(n - i, bs);
+
+                        // copy blocks into the 'buffer'
+                        for (std::size_t jj = 0; jj < mm; ++jj)
+                        {
+                            #pragma omp simd
+                            for (std::size_t ii = 0; ii < nn; ++ii)
+                            {
+                                buffer[jj * nn + ii] = data[(j + jj) * n + (i + ii)];
+                            }
+                        }
+
+                        // compress the 'buffer'
+                        fp<T>::template compress<BE, BM>(&compressed_data[k], &buffer[0], mm * nn);
+                        
+                        // move on to the next block
+                        k += ((n - i) < bs ? num_elements_b : k_inc);
+                    }
+                }
+			}
+
+            //! \brief General matrix vector multiply
+            //!
+            //! Computes y = alpha * A(T) * x + beta * y
+            matrix(const std::vector<T>& data, const std::size_t m, const std::size_t n, const std::size_t bs = bs_default)
+                :
+                matrix(&data[0], m, n, bs)
+            {
+                ;
+            }
+
+            std::size_t memory_footprint_bytes() const
+            {
+                return num_elements * sizeof(fp_type);
+            }
+            
+            void matrix_vector(const bool transpose, const T alpha, const T* x, const T beta, T* y) const
+            {
+                // handle some special cases
+                if (alpha == f_0)
+                {
+                    if (beta == f_0)
+                    {
+                        #pragma omp simd
+                        for (std::size_t j = 0; j < m; ++j)
+                        {
+                            y[j] = f_0;
+                        }
+                    }
+                    else if (beta != f_1)
+                    {
+                        #pragma omp simd
+                        for (std::size_t j = 0; j < m; ++j)
+                        {
+                            y[j] = beta * y[j];
+                        }
+                    }
+
+                    return;
+                }
+
+                // allocate local memory
+                std::vector<T> buffer_y;
+                const bool use_buffer = (std::abs(y - x) >= std::max(m, n) ? false : true);
+                buffer_y.reserve(use_buffer ? m : 0);
+                T* ptr_y = nullptr;
+
+                if (use_buffer)
+                {
+                    // accumulate on the buffer (do not write to the output directly)
+                    ptr_y = &buffer_y[0];
+
+                    // zero the buffer
+                    #pragma omp simd
+                    for (std::size_t j = 0; j < m; ++j)
+                    {
+                        ptr_y[j] = f_0;
+                    }
+                }
+                else
+                {
+                    // write to the output directly
+                    ptr_y = y;
+
+                    // scale by 'beta'
+                    if (beta == f_0)
+                    {
+                        #pragma omp simd
+                        for (std::size_t j = 0; j < m; ++j)
+                        {
+                            ptr_y[j] = f_0;
+                        }
+                    }
+                    else if (beta != f_1)
+                    {
+                        #pragma omp simd
+                        for (std::size_t j = 0; j < m; ++j)
+                        {
+                            ptr_y[j] *= beta;
+                        }
+                    }
+                }
+                
+                apply(transpose, alpha, x, ptr_y);
+
+                // output has been written directly
+                if (!use_buffer)
+                {
+                    return;
+                }
+
+                // accumulate on 'y'
+                if (beta == f_0)
+                {
+                    #pragma omp simd
+                    for (std::size_t j = 0; j < m; ++j)
+                    {
+                        y[j] = buffer_y[j];
+                    }
+                }
+                else if (beta == f_1)
+                {
+                    #pragma omp simd
+                    for (std::size_t j = 0; j < m; ++j)
+                    {
+                        y[j] += buffer_y[j];
+                    }
+                }
+                else
+                {
+                    #pragma omp simd
+                    for (std::size_t j = 0; j < m; ++j)
+                    {
+                        y[j] = buffer_y[j] + beta * y[j];
+                    }
+                }
+            }
+
+            void matrix_vector(const bool transpose, const T alpha, const std::vector<T>& x, const T beta, std::vector<T>& y) const
+            {
+                matrix_vector(transpose, alpha, &x[0], beta, &y[0]);
+            }
+		};
+
+        //! \brief Matrix
+		//!
+		//! \tparam T data type (of the matrix elements)
+		//! \tparam BE number of bits in the exponent
+		//! \tparam BM number of bits in the mantissa
+		template <typename T, triangular_matrix_type MT = triangular_matrix_type::upper, std::uint32_t BE = fp<T>::default_bits_exponent(), std::uint32_t BM = fp<T>::default_bits_mantissa()>
+		class triangular_matrix : public matrix<T, BE, BM>
+		{
+            static_assert(std::is_same<T, double>::value || std::is_same<T, float>::value, "error: only 'double' and 'float' type is supported");
+
+            // extent of the matrix
+            using matrix<T, BE, BM>::n;
+
+            // (default) block size
+			static constexpr std::size_t bs_default = matrix<T, BE, BM>::bs_default;
+            using matrix<T, BE, BM>::bs;
+
+            // compresse matrix
+            using matrix<T, BE, BM>::compressed_data;
+
+            using matrix<T, BE, BM>::num_blocks_a;
+            using matrix<T, BE, BM>::num_elements_a;
+
+            using matrix<T, BE, BM>::num_blocks_b;
+            using matrix<T, BE, BM>::num_elements_b;
+
+            using matrix<T, BE, BM>::num_blocks_c;
+            using matrix<T, BE, BM>::num_elements_c;
+
+            using matrix<T, BE, BM>::num_blocks_d;
+            using matrix<T, BE, BM>::num_elements_d;
+
+            using matrix<T, BE, BM>::num_elements;
+
+            // some constants
+            static constexpr T f_0 = static_cast<T>(0.0);
+            static constexpr T f_1 = static_cast<T>(1.0);
+
+            // internal methods
+            virtual void apply(const bool transpose, const T alpha, const T* x, T* y) const
+            {
+                // allocate local memory
+                std::vector<T> buffer_a, buffer_y;
+                buffer_a.reserve(bs * bs);
+                buffer_y.reserve(bs);
+
+                // apply matrix to 'x': diagonal blocks first
+                for (std::size_t j = 0, k = 0; j < n; j += bs)
+                {
+                    const std::size_t i_start = (MT == triangular_matrix_type::upper ? j : 0);
+                    const std::size_t i_end = (MT == triangular_matrix_type::upper ? n : (j + 1));
+
+                    for (std::size_t i = i_start; i < i_end; i += bs)
+                    {
+                        const std::size_t nn = std::min(n - i, bs);
+                    
+                        // consider diagonal block
+                        if (i == j)
+                        {
+                            // decompress the 'buffer'
+                            fp<T>::template decompress<BE, BM>(&buffer_a[0], &compressed_data[k], (nn * (nn + 1)) / 2);    
+
+                            // prepare call to tpmv
+                            for (std::size_t jj = 0; jj < nn; ++jj)
+                            {
+                                buffer_y[jj] = x[j + jj];
+                            }
+
+                            // apply triangular matrix vector multiply
+                            tpmv(CblasRowMajor, (MT == triangular_matrix_type::upper ? CblasUpper : CblasLower), (transpose ? CblasTrans : CblasNoTrans), CblasNonUnit, nn, &buffer_a[0], &buffer_y[0], 1);
+
+                            // scale by 'alpha'
+                            for (std::size_t jj = 0; jj < nn; ++jj)
+                            {
+                                y[j + jj] += alpha * buffer_y[jj];
+                            }
+
+                            // move on to the next block
+                            k += num_elements_a;
+                        }
+                        // skip non-diagonal blocks
+                        else
+                        {
+                            const std::size_t ij = (MT == triangular_matrix_type::upper ? i : j);
+                            k += ((n - ij) < bs ? num_elements_c : num_elements_b);
+                        }
+                    }
+                }
+
+                // apply matrix to 'x': non-diagonal blocks
+                for (std::size_t j = 0, k = 0; j < n; j += bs)
+                {
+                    const std::size_t i_start = (MT == triangular_matrix_type::upper ? j : 0);
+                    const std::size_t i_end = (MT == triangular_matrix_type::upper ? n : (j + 1));
+
+                    for (std::size_t i = i_start; i < i_end; i += bs)
+                    {
+                        const std::size_t mm = std::min(n - j, bs);
+                        const std::size_t nn = std::min(n - i, bs);
+
+                        // skip diagonal blocks
+                        if (i == j)
+                        {
+                            k += num_elements_a;
+                        }
+                        else
+                        {
+                            // decompress the 'buffer'
+                            fp<T>::template decompress<BE, BM>(&buffer_a[0], &compressed_data[k], mm * nn);
+
+                            // apply blas matrix vector multiplication
+                            gemv(CblasRowMajor, (transpose ? CblasTrans : CblasNoTrans), mm, nn, alpha, &buffer_a[0], nn, (transpose ? &x[j] : &x[i]), 1, f_1, (transpose ? &y[i] : &y[j]), 1);
+
+                            const std::size_t ij = (MT == triangular_matrix_type::upper ? i : j);
+                            k += ((n - ij) < bs ? num_elements_c : num_elements_b);
+                        }
+                    }
+                }
+            }
+
+        public:
+
+            triangular_matrix() = delete;
+
+            triangular_matrix(const T* data, const std::size_t n, const std::size_t bs = bs_default)
+                :
+                matrix<T, BE, BM>(data, n, MT, bs)
+            {
+                ;
+            }
+
+            triangular_matrix(const std::vector<T>& data, const std::size_t n, const std::size_t bs = bs_default)
+                :
+                triangular_matrix(&data[0], n, bs)
+            {
+                ;
+            }
+        };
+	}
+
+	/*
 	namespace blas
 	{
 		//! Matrix types: lower, upper and full
@@ -1189,6 +1669,7 @@ namespace FP_NAMESPACE
 			}
 		};
 	}
+	*/
 }
 
 #endif
