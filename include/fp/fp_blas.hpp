@@ -150,7 +150,7 @@ namespace FP_NAMESPACE
             }
 
             // internal methods
-            virtual void apply(const bool transpose, const T alpha, const T* x, T* y) const
+            virtual void matrix_vector_apply(const bool transpose, const T alpha, const T* x, T* y) const
             {
                 // allocate local memory
                 std::vector<T> buffer_a;
@@ -318,7 +318,7 @@ namespace FP_NAMESPACE
                     }
                 }
                 
-                apply(transpose, alpha, x, ptr_y);
+                matrix_vector_apply(transpose, alpha, x, ptr_y);
 
                 // output has been written directly
                 if (!use_buffer)
@@ -398,7 +398,7 @@ namespace FP_NAMESPACE
             static constexpr T f_1 = static_cast<T>(1.0);
 
             // internal methods
-            virtual void apply(const bool transpose, const T alpha, const T* x, T* y) const
+            virtual void matrix_vector_apply(const bool transpose, const T alpha, const T* x, T* y) const
             {
                 // allocate local memory
                 std::vector<T> buffer_a, buffer_y;
@@ -495,6 +495,152 @@ namespace FP_NAMESPACE
                 triangular_matrix(&data[0], n, bs)
             {
                 ;
+            }
+
+            void symmetric_matrix_vector(const T alpha, const T* x, const T beta, T* y) const
+            {
+                // handle some special cases
+                if (alpha == f_0)
+                {
+                    if (beta == f_0)
+                    {
+                        #pragma omp simd
+                        for (std::size_t j = 0; j < n; ++j)
+                        {
+                            y[j] = f_0;
+                        }
+                    }
+                    else if (beta != f_1)
+                    {
+                        #pragma omp simd
+                        for (std::size_t j = 0; j < n; ++j)
+                        {
+                            y[j] = beta * y[j];
+                        }
+                    }
+
+                    return;
+                }
+
+                // allocate local memory
+                std::vector<T> buffer_a, buffer_y;
+                buffer_a.reserve(bs * bs);
+                const bool use_buffer = (std::abs(y - x) >= n ? false : true);
+                buffer_y.reserve(use_buffer ? n : 0);
+                T* ptr_y = nullptr;
+
+                if (use_buffer)
+                {
+                    // accumulate on the buffer (do not write to the output directly)
+                    ptr_y = &buffer_y[0];
+
+                    // zero the buffer
+                    #pragma omp simd
+                    for (std::size_t j = 0; j < n; ++j)
+                    {
+                        ptr_y[j] = f_0;
+                    }
+                }
+                else
+                {
+                    // write to the output directly
+                    ptr_y = y;
+
+                    // scale by 'beta'
+                    if (beta == f_0)
+                    {
+                        #pragma omp simd
+                        for (std::size_t j = 0; j < n; ++j)
+                        {
+                            ptr_y[j] = f_0;
+                        }
+                    }
+                    else if (beta != f_1)
+                    {
+                        #pragma omp simd
+                        for (std::size_t j = 0; j < n; ++j)
+                        {
+                            ptr_y[j] *= beta;
+                        }
+                    }
+                }
+
+                // symmetric matrix vector multiply
+                for (std::size_t j = 0, k = 0; j < n; j += bs)
+                {
+                    const std::size_t i_start = (MT == triangular_matrix_type::upper ? j : 0);
+                    const std::size_t i_end = (MT == triangular_matrix_type::upper ? n : (j + 1));
+
+                    for (std::size_t i = i_start; i < i_end; i += bs)
+                    {
+                        const std::size_t mm = std::min(n - j, bs);
+                        const std::size_t nn = std::min(n - i, bs);
+
+                        // diagonal blocks
+                        if (i == j)
+                        {
+                            // decompress the 'buffer'
+                            fp<T>::template decompress<BE, BM>(&buffer_a[0], &compressed_data[k], (nn * (nn + 1)) / 2);
+
+                            // apply symmetric matrix vector multiply
+                            spmv(CblasRowMajor, (MT == triangular_matrix_type::upper ? CblasUpper : CblasLower), nn, alpha, &buffer_a[0], &x[i], 1, f_1, &ptr_y[i], 1);
+
+                            // move on to the next block
+                            k += num_elements_a;
+                        }
+                        // non-diagonal blocks
+                        else
+                        {
+                            // decompress the 'buffer'
+                            fp<T>::template decompress<BE, BM>(&buffer_a[0], &compressed_data[k], mm * nn);
+
+                            // apply general matrix vector multiplication
+                            gemv(CblasRowMajor, CblasNoTrans, mm, nn, alpha, &buffer_a[0], nn, &x[i], 1, f_1, &ptr_y[j], 1);
+                            gemv(CblasRowMajor, CblasTrans, mm, nn, alpha, &buffer_a[0], nn, &x[j], 1, f_1, &ptr_y[i], 1);
+
+                            // move on to the next block
+                            const std::size_t ij = (MT == triangular_matrix_type::upper ? i : j);
+                            k += ((n - ij) < bs ? num_elements_c : num_elements_b);
+                        }
+                    }
+                }
+
+                // output has been written directly
+                if (!use_buffer)
+                {
+                    return;
+                }
+
+                // accumulate on 'y'
+                if (beta == f_0)
+                {
+                    #pragma omp simd
+                    for (std::size_t j = 0; j < n; ++j)
+                    {
+                        y[j] = buffer_y[j];
+                    }
+                }
+                else if (beta == f_1)
+                {
+                    #pragma omp simd
+                    for (std::size_t j = 0; j < n; ++j)
+                    {
+                        y[j] += buffer_y[j];
+                    }
+                }
+                else
+                {
+                    #pragma omp simd
+                    for (std::size_t j = 0; j < n; ++j)
+                    {
+                        y[j] = buffer_y[j] + beta * y[j];
+                    }
+                }
+            }
+
+            void symmetric_matrix_vector(const T alpha, const std::vector<T>& x, const T beta, std::vector<T>& y) const
+            {
+                symmetric_matrix_vector(alpha, &x[0], beta, &y[0]);
             }
         };
 	}

@@ -37,8 +37,8 @@ using fp_matrix = typename fw::blas::triangular_matrix<real_t, fw::blas::triangu
 #endif
 
 // prototypes
-void blas_triangular_matrix_vector(const bool transpose, const std::size_t n, const real_t alpha, const std::vector<real_t>& a, const std::vector<real_t>& x, const real_t beta, std::vector<real_t>& y);
+void blas_triangular_matrix_vector(const bool transpose, const std::size_t n, const real_t alpha, const std::vector<real_t>& a, const std::vector<real_t>& x, const real_t beta, std::vector<real_t>& y, const bool symmetric = false);
 
-void fp_triangular_matrix_vector(const bool transpose, const real_t alpha, const fp_matrix& a, const std::vector<real_t>& x, const real_t beta, std::vector<real_t>& y);
+void fp_triangular_matrix_vector(const bool transpose, const real_t alpha, const fp_matrix& a, const std::vector<real_t>& x, const real_t beta, std::vector<real_t>& y, const bool symmetric = false);
 
 #endif

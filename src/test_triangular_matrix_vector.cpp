@@ -30,6 +30,7 @@ void kernel(const real_t alpha, const real_t beta, const bool transpose,
     const std::vector<std::vector<real_t>>& x,
     std::vector<std::vector<real_t>>& y_ref,
     std::vector<std::vector<real_t>>& y,
+    const bool symmetric = false,
     const bool use_blas = false);
 
 int main(int argc, char** argv)
@@ -38,7 +39,8 @@ int main(int argc, char** argv)
     const std::size_t n = (argc > 1 ? atoi(argv[1]) : n_default);
     const std::size_t num_matrices = (argc > 2 ? atoi(argv[2]) : num_matrices_default);
     const std::size_t bs = (argc > 3 ? atoi(argv[3]) : bs_default);
-    const bool use_blas = (argc > 4 ? (atoi(argv[4]) != 0 ? true : false) : false);
+    const bool symmetric = (argc > 4 ? (atoi(argv[4]) != 0 ? true : false) : false);
+    const bool use_blas = (argc > 5 ? (atoi(argv[5]) != 0 ? true : false) : false);
 
     std::cout << "triangular matrix multiply: " << n << " x " << n << " (" << (upper_matrix ? "upper)" : "lower)") << std::endl;
     std::cout << "num matrices: " << num_matrices << std::endl;
@@ -77,6 +79,20 @@ int main(int argc, char** argv)
             }
         }
 
+        if (symmetric)
+        {
+            for (std::size_t j = 0; j < n; ++j)
+            {
+                const std::size_t i_start = (upper_matrix ? 0 : j + 1);
+                const std::size_t i_end = (upper_matrix ? j : n);
+
+                for (std::size_t i = i_start; i < i_end; ++i)
+                {
+                    a[k][j * n + i] = a[k][i * n + j];
+                }
+            }
+        }
+
         x[k].reserve(n);
         for (std::size_t i = 0; i < n; ++i)
         {
@@ -100,56 +116,56 @@ int main(int argc, char** argv)
     const real_t beta = static_cast<real_t>(0.0);
     const bool transpose = true;
 
-    kernel(alpha, beta, transpose, n, a, a_compressed, x, y_ref, y, use_blas);
+    kernel(alpha, beta, transpose, n, a, a_compressed, x, y_ref, y, symmetric, use_blas);
     #else
     {
         const real_t alpha = static_cast<real_t>(1.0);
         const real_t beta = static_cast<real_t>(0.0);
         const bool transpose = false;
-        kernel(alpha, beta, transpose, n, a, a_compressed, x, y_ref, y, use_blas);
+        kernel(alpha, beta, transpose, n, a, a_compressed, x, y_ref, y, symmetric, use_blas);
         {
             const bool transpose = true;
-            kernel(alpha, beta, transpose, n, a, a_compressed, x, y_ref, y, use_blas);
+            kernel(alpha, beta, transpose, n, a, a_compressed, x, y_ref, y, symmetric, use_blas);
         }
     }
     {
         const real_t alpha = static_cast<real_t>(-1.1);
         const real_t beta = static_cast<real_t>(0.0);
         const bool transpose = false;
-        kernel(alpha, beta, transpose, n, a, a_compressed, x, y_ref, y, use_blas);
+        kernel(alpha, beta, transpose, n, a, a_compressed, x, y_ref, y, symmetric, use_blas);
         {
             const bool transpose = true;
-            kernel(alpha, beta, transpose, n, a, a_compressed, x, y_ref, y, use_blas);
+            kernel(alpha, beta, transpose, n, a, a_compressed, x, y_ref, y, symmetric, use_blas);
         }
     }
     {
         const real_t alpha = static_cast<real_t>(0.0);
         const real_t beta = static_cast<real_t>(-0.5);
         const bool transpose = false;
-        kernel(alpha, beta, transpose, n, a, a_compressed, x, y_ref, y, use_blas);
+        kernel(alpha, beta, transpose, n, a, a_compressed, x, y_ref, y, symmetric, use_blas);
         {
             const bool transpose = true;
-            kernel(alpha, beta, transpose, n, a, a_compressed, x, y_ref, y, use_blas);
+            kernel(alpha, beta, transpose, n, a, a_compressed, x, y_ref, y, symmetric, use_blas);
         }
     }
     {
         const real_t alpha = static_cast<real_t>(0.0);
         const real_t beta = static_cast<real_t>(0.0);
         const bool transpose = false;
-        kernel(alpha, beta, transpose, n, a, a_compressed, x, y_ref, y, use_blas);
+        kernel(alpha, beta, transpose, n, a, a_compressed, x, y_ref, y, symmetric, use_blas);
         {
             const bool transpose = true;
-            kernel(alpha, beta, transpose, n, a, a_compressed, x, y_ref, y, use_blas);
+            kernel(alpha, beta, transpose, n, a, a_compressed, x, y_ref, y, symmetric, use_blas);
         }
     }
     {
         const real_t alpha = static_cast<real_t>(0.34);
         const real_t beta = static_cast<real_t>(-1.343);
         const bool transpose = false;
-        kernel(alpha, beta, transpose, n, a, a_compressed, x, y_ref, y, use_blas);
+        kernel(alpha, beta, transpose, n, a, a_compressed, x, y_ref, y, symmetric, use_blas);
         {
             const bool transpose = true;
-            kernel(alpha, beta, transpose, n, a, a_compressed, x, y_ref, y, use_blas);
+            kernel(alpha, beta, transpose, n, a, a_compressed, x, y_ref, y, symmetric, use_blas);
         }    
     }
     #endif
@@ -164,10 +180,11 @@ void kernel(const real_t alpha, const real_t beta, const bool transpose,
     const std::vector<std::vector<real_t>>& x,
     std::vector<std::vector<real_t>>& y_ref,
     std::vector<std::vector<real_t>>& y,
+    const bool symmetric,
     const bool use_blas)
 {
     // print some information
-    std::cout << "alpha: " << alpha << ", beta: " << beta << ", transpose: " << (transpose ? "true" : "false") << std::endl;
+    std::cout << "alpha: " << alpha << ", beta: " << beta << ", transpose: " << (transpose ? "true" : "false") << ", symmetric: " << (symmetric ? "yes" : "no") << std::endl;
 
     // reference computation
     for (std::size_t k = 0; k < a.size(); ++k)
@@ -225,7 +242,7 @@ void kernel(const real_t alpha, const real_t beta, const bool transpose,
                 #pragma omp for
                 for (std::size_t k = 0; k < a.size(); ++k)
                 {
-                    blas_triangular_matrix_vector(transpose, n, alpha, a_packed[k], x[k], beta, y[k]);
+                    blas_triangular_matrix_vector(transpose, n, alpha, a_packed[k], x[k], beta, y[k], symmetric);
                 }
             }
             else
@@ -233,7 +250,7 @@ void kernel(const real_t alpha, const real_t beta, const bool transpose,
                 #pragma omp for
                 for (std::size_t k = 0; k < a.size(); ++k)
                 {
-                    fp_triangular_matrix_vector(transpose, alpha, a_compressed[k], x[k], beta, y[k]);
+                    fp_triangular_matrix_vector(transpose, alpha, a_compressed[k], x[k], beta, y[k], symmetric);
                 }
             }
         }
@@ -253,7 +270,7 @@ void kernel(const real_t alpha, const real_t beta, const bool transpose,
                 #pragma omp for
                 for (std::size_t k = 0; k < a.size(); ++k)
                 {
-                    blas_triangular_matrix_vector(transpose, n, alpha, a_packed[k], x[k], beta, y[k]);
+                    blas_triangular_matrix_vector(transpose, n, alpha, a_packed[k], x[k], beta, y[k], symmetric);
                 }
             }
             else
@@ -261,7 +278,7 @@ void kernel(const real_t alpha, const real_t beta, const bool transpose,
                 #pragma omp for
                 for (std::size_t k = 0; k < a.size(); ++k)
                 {
-                    fp_triangular_matrix_vector(transpose, alpha, a_compressed[k], x[k], beta, y[k]);
+                    fp_triangular_matrix_vector(transpose, alpha, a_compressed[k], x[k], beta, y[k], symmetric);
                 }
             }
         }
@@ -275,7 +292,7 @@ void kernel(const real_t alpha, const real_t beta, const bool transpose,
 
     #if defined(BENCHMARK)
     // output some metrics
-    const double gflops = measurement * (a.size() * n * n) / (time_stop - time_start) * 1.0E-9;
+    const double gflops = measurement * a.size() * (symmetric ? 2 : 1) * (n * n) / (time_stop - time_start) * 1.0E-9;
     std::cout << "gflops: " << gflops << std::endl;
     #else
     // correctness
