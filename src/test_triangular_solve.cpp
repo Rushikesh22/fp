@@ -12,6 +12,7 @@
 
 #if defined(THREAD_PINNING)
 #include <sched.h>
+#include <sys/sysinfo.h>
 #endif
 
 constexpr std::size_t m_default = 256;
