@@ -10,6 +10,10 @@
 #include <omp.h>
 #include <triangular_solve_kernel.hpp>
 
+#if defined(THREAD_PINNING)
+#include <sched.h>
+#endif
+
 constexpr std::size_t m_default = 256;
 constexpr std::size_t n_default = 256;
 constexpr std::size_t num_matrices_default = 100;
@@ -42,6 +46,19 @@ int main(int argc, char** argv)
 
     std::cout << "triangular matrix solve: " << n << " x " << n << " (" << (upper_matrix ? "upper)" : "lower)") << std::endl;
     std::cout << "num matrices: " << num_matrices << std::endl;
+
+#if defined(THREAD_PINNING)
+    #pragma omp parallel
+    {
+        const std::size_t thread_id = omp_get_thread_num();
+        const std::size_t num_cpus = get_nprocs_conf();
+
+        cpu_set_t cpu_mask;
+        CPU_ZERO(&cpu_mask);
+        CPU_SET(thread_id % num_cpus, &cpu_mask);
+        sched_setaffinity(0, sizeof(cpu_mask), &cpu_mask);
+    }
+#endif
 
     // create matrices and vectors
     std::vector<std::vector<real_t>> a(num_matrices), x(num_matrices), x_ref(num_matrices), y(num_matrices);
