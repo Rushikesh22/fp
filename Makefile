@@ -10,17 +10,18 @@ LDFLAGS = -O2 -L$(MKLROOT)/lib/intel64 -Wl,--no-as-needed -lmkl_intel_lp64 -lmkl
 CXXFLAGS += -DBENCHMARK
 CXXFLAGS += -DFP_RESCALE
 #CXXFLAGS += -D_BE=11 -D_BM=52
-CXXFLAGS += -D_BE=8 -D_BM=23
+#CXXFLAGS += -D_BE=8 -D_BM=23
 #CXXFLAGS += -D_BE=8 -D_BM=7
 #CXXFLAGS += -D_BE=4 -D_BM=3
 #CXXFLAGS += -D_BE=0 -D_BM=15
 #CXXFLAGS += -D_BE=0 -D_BM=11
-#CXXFLAGS += -D_BE=0 -D_BM=7
+CXXFLAGS += -D_BE=0 -D_BM=7
 CXXFLAGS += -DUPPER_MATRIX
 
 #all: test_fp
 #all: test_general_matrix_vector
-all: test_triangular_matrix_vector
+#all: test_triangular_matrix_vector
+all: test_triangular_solve
 
 ###
 test_fp: bin/test_fp.x
@@ -53,6 +54,18 @@ obj/test_triangular_matrix_vector.o: src/test_triangular_matrix_vector.cpp
 	$(CXX) $(CXXFLAGS) -o $@ -c $<
 
 obj/triangular_matrix_vector_kernel.o: src/triangular_matrix_vector_kernel.cpp
+	$(CXX) $(CXXFLAGS) -o $@ -c $<
+
+###
+test_triangular_solve: bin/test_triangular_solve.x
+
+bin/test_triangular_solve.x: obj/test_triangular_solve.o obj/triangular_solve_kernel.o
+	$(LD) $(LDFLAGS) -o $@ $^
+
+obj/test_triangular_solve.o: src/test_triangular_solve.cpp
+	$(CXX) $(CXXFLAGS) -o $@ -c $<
+
+obj/triangular_solve_kernel.o: src/triangular_solve_kernel.cpp
 	$(CXX) $(CXXFLAGS) -o $@ -c $<
 
 ###
