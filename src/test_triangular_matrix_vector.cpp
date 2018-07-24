@@ -115,7 +115,6 @@ int main(int argc, char** argv)
     const real_t alpha = static_cast<real_t>(1.0);
     const real_t beta = static_cast<real_t>(0.0);
     const bool transpose = true;
-
     kernel(alpha, beta, transpose, n, a, a_compressed, x, y_ref, y, symmetric, use_blas);
     #else
     {

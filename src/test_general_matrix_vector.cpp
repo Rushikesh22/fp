@@ -79,7 +79,6 @@ int main(int argc, char** argv)
     const real_t alpha = static_cast<real_t>(1.0);
     const real_t beta = static_cast<real_t>(0.0);
     const bool transpose = true;
-
     kernel(alpha, beta, transpose, m, n, a, a_compressed, x, y_ref, y, use_blas);
     #else
     {
@@ -244,7 +243,7 @@ void kernel(const real_t alpha, const real_t beta, const bool transpose,
 
     #if defined(BENCHMARK)
     // output some metrics
-    const double gflops = measurement * (a.size() * 2 * m * n) / (time_stop - time_start) * 1.0E-9;
+    const double gflops = measurement * a.size() * 2 * m * n / (time_stop - time_start) * 1.0E-9;
     std::cout << "gflops: " << gflops << std::endl;
     #else
     // correctness
