@@ -10,6 +10,7 @@
 #include <cstdlib>
 #include <cstdint>
 #include <vector>
+#include <array>
 #include <cblas.h>
 
 #include <fp/fp.hpp>
@@ -23,8 +24,11 @@ namespace FP_NAMESPACE
 {
 	namespace blas
 	{
-		//! Matrix types: lower, upper
+		//! matrix types: lower, upper
 		enum class triangular_matrix_type { lower = 0, upper = 1 };
+
+		//! matrix extent struct
+		//template <bool 
 
 		//! \brief General matrix
 		//!
@@ -36,10 +40,16 @@ namespace FP_NAMESPACE
 		{
             static_assert(std::is_same<T, double>::value || std::is_same<T, float>::value, "error: only 'double' and 'float' type is supported");
 
+		public:
+
+			// extent of the matrix: 'm' rows and 'n' columns
+			const std::size_t m;
+			const std::size_t n;
+
         protected:
     
     		using fp_type = typename fp<T>::template format<BE, BM>::type;
-			
+
             // block size
             const std::size_t bs;
 
@@ -65,10 +75,10 @@ namespace FP_NAMESPACE
             static constexpr T f_1 = static_cast<T>(1.0);
 
             // constructor that can be called by triangular_matrix class
-            matrix(const T* data, const std::size_t n, triangular_matrix_type MT = triangular_matrix_type::upper, const std::size_t bs = bs_default)
+            matrix(const T* data, const std::array<std::size_t, 1>& extent, const std::size_t ld_data, triangular_matrix_type MT = triangular_matrix_type::upper, const std::size_t bs = bs_default)
                 :
-                m(n),
-                n(n),
+				m(extent[0]), // set, but not to be used
+                n(extent[0]),
                 bs(bs),
                 //  a b b | c
                 //  0 a b | c
@@ -98,7 +108,7 @@ namespace FP_NAMESPACE
 
                     for (std::size_t i = i_start; i < i_end; i += bs)
                     {
-                        const std::size_t mm = std::min(m - j, bs);
+                        const std::size_t mm = std::min(n - j, bs);
                         const std::size_t nn = std::min(n - i, bs);
 
                         // copy blocks into the 'buffer'
@@ -112,7 +122,7 @@ namespace FP_NAMESPACE
 
                                 for (std::size_t ii = ii_start; ii < ii_end; ++ii, ++kk)
                                 {
-                                    buffer[kk] = data[(j + jj) * n + (i + ii)];
+                                    buffer[kk] = data[(j + jj) * ld_data + (i + ii)];
                                 }
                             }
                             // non-diagonal blocks
@@ -121,7 +131,7 @@ namespace FP_NAMESPACE
                                 #pragma omp simd
                                 for (std::size_t ii = 0; ii < nn; ++ii)
                                 {
-                                    buffer[jj * nn + ii] = data[(j + jj) * n + (i + ii)];
+                                    buffer[jj * nn + ii] = data[(j + jj) * ld_data + (i + ii)];
                                 }
                             }
                         }    
@@ -250,20 +260,16 @@ namespace FP_NAMESPACE
 
 		public:
 
-			// extent of the matrix: 'm' rows and 'n' columns
-			const std::size_t m;
-			const std::size_t n;
-
 			// (default) block size
 			static constexpr std::size_t bs_default = 64;
 
 			// constructor
 			matrix() = delete;
 
-			matrix(const T* data, const std::size_t m, const std::size_t n, const std::size_t bs = bs_default)
+			matrix(const T* data, const std::array<std::size_t, 2>& extent, const std::size_t ld_data, const std::size_t bs = bs_default)
 				:
-				m(m),
-				n(n),
+				m(extent[0]),
+				n(extent[1]),
 				bs(bs),
                 //  a a a | b
                 //  a a a | b
@@ -278,7 +284,7 @@ namespace FP_NAMESPACE
                 num_blocks_d((((m + bs - 1) / bs) - (m / bs)) * (((n + bs - 1) / bs) - (n / bs))),
                 num_elements_d(fp<T>::template format<BE, BM>::memory_footprint_elements((m - (m / bs) * bs) * (n - (n / bs) * bs))),
                 num_elements(num_blocks_a * num_elements_a + num_blocks_b * num_elements_b + num_blocks_c * num_elements_c + num_blocks_d * num_elements_d)
-			{
+			{				
                 // allocate memory for the compressed matrix
                 compressed_data.reserve(num_elements);
 
@@ -301,7 +307,7 @@ namespace FP_NAMESPACE
                             #pragma omp simd
                             for (std::size_t ii = 0; ii < nn; ++ii)
                             {
-                                buffer[jj * nn + ii] = data[(j + jj) * n + (i + ii)];
+                                buffer[jj * nn + ii] = data[(j + jj) * ld_data + (i + ii)];
                             }
                         }
 
@@ -314,35 +320,28 @@ namespace FP_NAMESPACE
                 }
 			}
 
-            //! \brief General matrix vector multiply
-            //!
-            //! Computes y = alpha * A(T) * x + beta * y
-            matrix(const std::vector<T>& data, const std::size_t m, const std::size_t n, const std::size_t bs = bs_default)
+            matrix(const std::vector<T>& data, const std::array<std::size_t, 2>& extent, const std::size_t ld_data, const std::size_t bs = bs_default)
                 :
-                matrix(&data[0], m, n, bs)
+                matrix(&data[0], extent, ld_data, bs)
             {
                 ;
             }
 
-			matrix(const T* data, const std::size_t n, const std::size_t bs = bs_default)
+			matrix(const std::vector<T>& data, const std::array<std::size_t, 1>& extent, const std::size_t ld_data, const std::size_t bs = bs_default)
                 :
-                matrix(data, n, n, bs)
+                matrix(data, std::array<std::size_t, 2>({extent[0], extent[0]}), ld_data, bs)
             {
                 ;
             }
-
-			matrix(const std::vector<T>& data, const std::size_t n, const std::size_t bs = bs_default)
-                :
-                matrix(&data[0], n, bs)
-            {
-                ;
-            }
-
+			
             std::size_t memory_footprint_bytes() const
             {
                 return num_elements * sizeof(fp_type);
             }
 
+			//! \brief General matrix vector multiply
+            //!
+            //! Computes y = alpha * A(T) * x + beta * y
             void matrix_vector(const bool transpose, const T alpha, const T* x, const T beta, T* y) const
             {
                 blas2_frame([&](const bool transpose, const T alpha, const T* x, T* y)
@@ -389,6 +388,13 @@ namespace FP_NAMESPACE
 		class triangular_matrix : public matrix<T, BE, BM>
 		{
             static_assert(std::is_same<T, double>::value || std::is_same<T, float>::value, "error: only 'double' and 'float' type is supported");
+
+		public:
+
+			// extent of the matrix
+            using matrix<T, BE, BM>::n;
+			
+		private:
 
             // block size
             using matrix<T, BE, BM>::bs;
@@ -443,25 +449,22 @@ namespace FP_NAMESPACE
 
         public:
 
-            // extent of the matrix
-            using matrix<T, BE, BM>::n;
-
 			// (default) block size
 			static constexpr std::size_t bs_default = matrix<T, BE, BM>::bs_default;
 
 			// constructor
             triangular_matrix() = delete;
 
-            triangular_matrix(const T* data, const std::size_t n, const std::size_t bs = bs_default)
+            triangular_matrix(const T* data, const std::array<std::size_t, 1>& extent, const std::size_t ld_data, const std::size_t bs = bs_default)
                 :
-                matrix<T, BE, BM>(data, n, MT, bs)
+                matrix<T, BE, BM>(data, extent, ld_data, MT, bs)
             {
                 ;
             }
 
-            triangular_matrix(const std::vector<T>& data, const std::size_t n, const std::size_t bs = bs_default)
+            triangular_matrix(const std::vector<T>& data, const std::array<std::size_t, 1>& extent, const std::size_t ld_data, const std::size_t bs = bs_default)
                 :
-                triangular_matrix(&data[0], n, bs)
+                triangular_matrix(&data[0], extent, ld_data, bs)
             {
                 ;
             }

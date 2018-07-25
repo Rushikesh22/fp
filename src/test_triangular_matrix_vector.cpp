@@ -117,7 +117,8 @@ int main(int argc, char** argv)
             x[k][i] = 0.9 + 0.2 * drand48();
         }
 
-        a_compressed.emplace_back(a[k], n, bs);
+        std::array<std::size_t, 1> extent({n});
+        a_compressed.emplace_back(a[k], extent, n, bs);
 
         y_ref[k].reserve(n);
         y[k].reserve(n);

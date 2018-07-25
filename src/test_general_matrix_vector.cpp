@@ -7,6 +7,7 @@
 #include <cstdlib>
 #include <cstdint>
 #include <vector>
+#include <array>
 #include <omp.h>
 #include <general_matrix_vector_kernel.hpp>
 
@@ -81,7 +82,8 @@ int main(int argc, char** argv)
             x[k][i] = 0.9 + 0.2 * drand48();
         }
 
-        a_compressed.emplace_back(a[k], m, n, bs);
+        std::array<std::size_t, 2> extent({m, n});
+        a_compressed.emplace_back(a[k], extent, n, bs);
 
         y_ref[k].reserve(m);
         y[k].reserve(m);
