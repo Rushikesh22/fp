@@ -9,11 +9,11 @@
 #include <cstdint>
 #include <cblas.h>
 
-#if !defined(BLAS_NAMESPACE)
-#define BLAS_NAMESPACE fw
+#if !defined(FP_NAMESPACE)
+#define FP_NAMESPACE fw
 #endif
 
-namespace BLAS_NAMESPACE
+namespace FP_NAMESPACE
 {
 	namespace blas
 	{

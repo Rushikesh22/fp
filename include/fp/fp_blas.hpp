@@ -39,13 +39,8 @@ namespace FP_NAMESPACE
         protected:
     
     		using fp_type = typename fp<T>::template format<BE, BM>::type;
-
-            // extent of the matrix: 'm' rows and 'n' columns
-			const std::size_t m;
-			const std::size_t n;
 			
-            // (default) block size
-			static constexpr std::size_t bs_default = 64;
+            // block size
             const std::size_t bs;
 
             // compressed matrix
@@ -255,6 +250,14 @@ namespace FP_NAMESPACE
 
 		public:
 
+			// extent of the matrix: 'm' rows and 'n' columns
+			const std::size_t m;
+			const std::size_t n;
+
+			// (default) block size
+			static constexpr std::size_t bs_default = 64;
+
+			// constructor
 			matrix() = delete;
 
 			matrix(const T* data, const std::size_t m, const std::size_t n, const std::size_t bs = bs_default)
@@ -321,6 +324,20 @@ namespace FP_NAMESPACE
                 ;
             }
 
+			matrix(const T* data, const std::size_t n, const std::size_t bs = bs_default)
+                :
+                matrix(data, n, n, bs)
+            {
+                ;
+            }
+
+			matrix(const std::vector<T>& data, const std::size_t n, const std::size_t bs = bs_default)
+                :
+                matrix(&data[0], n, bs)
+            {
+                ;
+            }
+
             std::size_t memory_footprint_bytes() const
             {
                 return num_elements * sizeof(fp_type);
@@ -373,11 +390,7 @@ namespace FP_NAMESPACE
 		{
             static_assert(std::is_same<T, double>::value || std::is_same<T, float>::value, "error: only 'double' and 'float' type is supported");
 
-            // extent of the matrix
-            using matrix<T, BE, BM>::n;
-
-            // (default) block size
-			static constexpr std::size_t bs_default = matrix<T, BE, BM>::bs_default;
+            // block size
             using matrix<T, BE, BM>::bs;
 
             // compresse matrix
@@ -430,6 +443,13 @@ namespace FP_NAMESPACE
 
         public:
 
+            // extent of the matrix
+            using matrix<T, BE, BM>::n;
+
+			// (default) block size
+			static constexpr std::size_t bs_default = matrix<T, BE, BM>::bs_default;
+
+			// constructor
             triangular_matrix() = delete;
 
             triangular_matrix(const T* data, const std::size_t n, const std::size_t bs = bs_default)

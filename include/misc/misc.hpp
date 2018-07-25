@@ -6,11 +6,11 @@
 #if !defined(MISC_HPP)
 #define MISC_HPP
 
-#if !defined(MISC_NAMESPACE)
-#define MISC_NAMESPACE fw 
+#if !defined(FP_NAMESPACE)
+#define FP_NAMESPACE fw 
 #endif
 
-namespace MISC_NAMESPACE
+namespace FP_NAMESPACE
 {
     /////////////////////////////////////////////////////////////////                                                                                                                                                                                                         
     // nested loop (currently 2-levels)                                                                                                                                                                                                                                       
