@@ -326,13 +326,6 @@ namespace FP_NAMESPACE
             {
                 ;
             }
-
-			matrix(const std::vector<T>& data, const std::array<std::size_t, 1>& extent, const std::size_t ld_data, const std::size_t bs = bs_default)
-                :
-                matrix(data, std::array<std::size_t, 2>({extent[0], extent[0]}), ld_data, bs)
-            {
-                ;
-            }
 			
             std::size_t memory_footprint_bytes() const
             {
@@ -468,6 +461,20 @@ namespace FP_NAMESPACE
             {
                 ;
             }
+
+			triangular_matrix(const T* data, const std::array<std::size_t, 2>& extent, const std::size_t ld_data, const std::size_t bs = bs_default)
+				:
+				triangular_matrix(data, std::array<std::size_t, 1>({extent[0]}), ld_data, bs)
+			{
+				;
+			}
+
+			triangular_matrix(const std::vector<T>& data, const std::array<std::size_t, 2>& extent, const std::size_t ld_data, const std::size_t bs = bs_default)
+				:
+				triangular_matrix(&data[0], extent, ld_data, bs)
+			{
+				;
+			}
 
             void matrix_vector(const bool transpose, const T alpha, const T* x, const T beta, T* y) const
             {
