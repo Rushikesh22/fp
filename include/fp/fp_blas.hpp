@@ -274,7 +274,7 @@ namespace FP_NAMESPACE
 				// compress the matrix block by block
 				std::vector<T> buffer;
 				buffer.reserve(bs * bs);
-					
+                fp_type* ptr = compressed_data;
 				for (std::size_t j = 0; j < m; j += bs)
 				{
 					for (std::size_t i = 0; i < n; i += bs)
@@ -293,19 +293,19 @@ namespace FP_NAMESPACE
 						}
 
 						// compress the 'buffer'
-						fp<T>::template compress<BE, BM>(compressed_data, &buffer[0], mm * nn);
+						fp<T>::template compress<BE, BM>(ptr, &buffer[0], mm * nn);
 						
 						// move on to the next block
-						compressed_data += ((n - i) < bs ? num_elements_b : ((m - j) < bs ? num_elements_c : num_elements_a));
+						ptr += ((n - i) < bs ? num_elements_b : ((m - j) < bs ? num_elements_c : num_elements_a));
 					}
 				}
 
 				if (num_elements_d != 0)
 				{
-					compressed_data = compressed_data - (num_elements_c != 0 ? num_elements_c : num_elements_b) + num_elements_d;
+					ptr = ptr - (num_elements_c != 0 ? num_elements_c : num_elements_b) + num_elements_d;
 				}
 
-				return compressed_data;
+				return ptr;
 			}
 
 			static std::size_t memory_footprint_bytes(const std::array<std::size_t, 2>& extent, const std::size_t bs = bs_default)
@@ -322,7 +322,7 @@ namespace FP_NAMESPACE
 				const std::size_t num_blocks_c = (((m + bs - 1) / bs) - (m / bs)) * (n / bs);
 				const std::size_t num_blocks_d = (((m + bs - 1) / bs) - (m / bs)) * (((n + bs - 1) / bs) - (n / bs));
 
-				return num_blocks_a * num_elements_a + num_blocks_b * num_elements_b + num_blocks_c * num_elements_c + num_blocks_d * num_elements_d;
+				return (num_blocks_a * num_elements_a + num_blocks_b * num_elements_b + num_blocks_c * num_elements_c + num_blocks_d * num_elements_d);
 			}
 			
             std::size_t memory_footprint_bytes() const
@@ -511,8 +511,8 @@ namespace FP_NAMESPACE
 				
 				// compress the matrix block by block
                 T buffer[bs * bs];
-
-                for (std::size_t j = 0, k = 0; j < n; j += bs)
+                fp_type* ptr = compressed_data;
+                for (std::size_t j = 0; j < n; j += bs)
                 {
                     const std::size_t i_start = (MT == triangular_matrix_type::upper ? j : 0);
                     const std::size_t i_end = (MT == triangular_matrix_type::upper ? n : (j + 1));
@@ -548,22 +548,27 @@ namespace FP_NAMESPACE
                         }    
 
                         // compress the 'buffer'
-                        fp<T>::template compress<BE, BM>(&compressed_data[k], buffer, (i == j ? ((mm * (mm + 1)) / 2) : mm * nn));
+                        fp<T>::template compress<BE, BM>(ptr, buffer, (i == j ? ((mm * (mm + 1)) / 2) : mm * nn));
 
                         // move on to the next block
                         if (i == j)
                         {
-                            k += num_elements_a;
+                            ptr += num_elements_a;
                         }
                         else
                         {
                             const std::size_t ij = (MT == triangular_matrix_type::upper ? i : j);
-                            k += ((n - ij) < bs ? num_elements_c : num_elements_b);
+                            ptr += ((n - ij) < bs ? num_elements_c : num_elements_b);
                         }
                     }
                 }
 				
-				return compressed_data;
+                if (num_elements_d != 0)
+                {
+                    ptr = ptr - num_elements_a + num_elements_d;
+                }
+
+				return ptr;
 			}
 
 			static fp_type* compress(const T* data, fp_type* compressed_data, const std::array<std::size_t, 2>& extent, const std::size_t ld_data, const std::size_t bs = bs_default, triangular_matrix* mat = nullptr)
