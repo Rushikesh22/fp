@@ -11,8 +11,8 @@
 #include <fp/fp_blas.hpp>
 
 // fundamental real data type: 'float' or 'double'
-using real_t = float;
-//using real_t = double;
+//using real_t = float;
+using real_t = double;
 
 // number of bits to be used for exponent and mantissa
 #if defined(_BE)

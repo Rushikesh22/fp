@@ -479,7 +479,9 @@ namespace FP_NAMESPACE
     template <>
     struct fp<double>::format<11, 52>
     {
-        using type = double;
+        // we need an integer data type that is of the same size as 'double'!
+        // note: we do not use 'double' here, as we need to be able to identify the compressed type
+        using type = std::uint64_t;
 
         static inline std::size_t memory_footprint_bytes(const std::size_t n)
         {
@@ -494,9 +496,12 @@ namespace FP_NAMESPACE
 
     template <>
     template <>
-    inline void fp<double>::compress<11, 52>(double* out, const double* in, const std::size_t n)
+    inline void fp<double>::compress<11, 52>(typename fp<double>::format<11, 52>::type* out, const double* in, const std::size_t n)
     {
-        if (in == out)
+        // switch back to 'double'
+        double* ptr_out = reinterpret_cast<double*>(out);
+
+        if (in == ptr_out)
         {
             return;
         }
@@ -504,15 +509,18 @@ namespace FP_NAMESPACE
         #pragma omp simd
         for (std::size_t i = 0; i < n; ++i)
         {
-            out[i] = in[i];
+            ptr_out[i] = in[i];
         }
     }
 
     template <>
     template <>
-    inline void fp<double>::decompress<11, 52>(double* out, const double* in, const std::size_t n)
+    inline void fp<double>::decompress<11, 52>(double* out, const typename fp<double>::format<11, 52>::type* in, const std::size_t n)
     {
-        if (in == out)
+        // switch back to 'double'
+        const double* ptr_in = reinterpret_cast<const double*>(in);
+
+        if (ptr_in == out)
         {
             return;
         }
@@ -520,7 +528,7 @@ namespace FP_NAMESPACE
         #pragma omp simd
         for (std::size_t i = 0; i < n; ++i)
         {
-            out[i] = in[i];
+            out[i] = ptr_in[i];
         }
     }
 
@@ -531,7 +539,9 @@ namespace FP_NAMESPACE
     template <>
     struct fp<float>::format<8, 23>
     {
-        using type = float;
+        // we need an integer data type that is of the same size as 'float'!
+        // note: we do not use 'float' here, as we need to be able to identify the compressed type
+        using type = std::uint32_t;
 
         static inline std::size_t memory_footprint_bytes(const std::size_t n)
         {
@@ -546,9 +556,12 @@ namespace FP_NAMESPACE
 
     template <>
     template <>
-    inline void fp<float>::compress<8, 23>(float* out, const float* in, const std::size_t n)
+    inline void fp<float>::compress<8, 23>(typename fp<float>::format<8, 23>::type* out, const float* in, const std::size_t n)
     {
-        if (in == out)
+        // switch back to 'float'
+        float* ptr_out = reinterpret_cast<float*>(out);
+
+        if (in == ptr_out)
         {
             return;
         }
@@ -556,15 +569,18 @@ namespace FP_NAMESPACE
         #pragma omp simd
         for (std::size_t i = 0; i < n; ++i)
         {
-            out[i] = in[i];
+            ptr_out[i] = in[i];
         }
     }
 
     template <>
     template <>
-    inline void fp<float>::decompress<8, 23>(float* out, const float* in, const std::size_t n)
+    inline void fp<float>::decompress<8, 23>(float* out, const typename fp<float>::format<8, 23>::type* in, const std::size_t n)
     {
-        if (in == out)
+        // switch back to 'float'
+        const float* ptr_in = reinterpret_cast<const float*>(in);
+
+        if (ptr_in == out)
         {
             return;
         }
@@ -572,7 +588,7 @@ namespace FP_NAMESPACE
         #pragma omp simd
         for (std::size_t i = 0; i < n; ++i)
         {
-            out[i] = in[i];
+            out[i] = ptr_in[i];
         }
     }
     
@@ -583,7 +599,9 @@ namespace FP_NAMESPACE
     template <>
     struct fp<double>::format<8, 23>
     {
-        using type = float;
+        // we need an integer data type that is of the same size as 'float'!
+        // note: we do not use 'float' here, as we need to be able to identify the compressed type
+        using type = std::uint32_t;
 
         static inline std::size_t memory_footprint_bytes(const std::size_t n)
         {
@@ -598,23 +616,29 @@ namespace FP_NAMESPACE
 
     template <>
     template <>
-    inline void fp<double>::compress<8, 23>(float* out, const double* in, const std::size_t n)
+    inline void fp<double>::compress<8, 23>(typename fp<double>::format<8, 23>::type* out, const double* in, const std::size_t n)
     {
+        // switch back to 'float'
+        float* ptr_out = reinterpret_cast<float*>(out);
+
         #pragma omp simd
         for (std::size_t i = 0; i < n; ++i)
         {
-            out[i] = static_cast<float>(in[i]);
+            ptr_out[i] = static_cast<float>(in[i]);
         }
     }
 
     template <>
     template <>
-    inline void fp<double>::decompress<8, 23>(double* out, const float* in, const std::size_t n)
+    inline void fp<double>::decompress<8, 23>(double* out, const typename fp<double>::format<8, 23>::type* in, const std::size_t n)
     {
+        // switch back to 'float'
+        const float* ptr_in = reinterpret_cast<const float*>(in);
+
         #pragma omp simd
         for (std::size_t i = 0; i < n; ++i)
         {
-            out[i] = static_cast<double>(in[i]);
+            out[i] = static_cast<double>(ptr_in[i]);
         }
     }
 
