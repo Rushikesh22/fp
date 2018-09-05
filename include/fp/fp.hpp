@@ -1334,6 +1334,31 @@ namespace FP_NAMESPACE
             out[i] = tmp * b + a;
         } 
     }
+
+    // TYPE REMAPPING: internally all compressed representations use
+    // integers to distinguish the non-compressed and compressed
+    // fp numbers
+    namespace internal
+    {
+        template <typename T, std::uint32_t BE, std::uint32_t BM>
+        struct fp_remap
+        {
+            using type = typename FP_NAMESPACE::fp<T>::template format<BE, BM>::type;
+        };
+
+        template <>
+        struct fp_remap<double, FP_NAMESPACE::fp<double>::default_bits_exponent(), FP_NAMESPACE::fp<double>::default_bits_mantissa()>
+        {
+            using type = double;
+        };
+
+        template <>
+        struct fp_remap<float, FP_NAMESPACE::fp<float>::default_bits_exponent(), FP_NAMESPACE::fp<float>::default_bits_mantissa()>
+        {
+            using type = float;
+        };
+    }
+
 }
 
 #endif
