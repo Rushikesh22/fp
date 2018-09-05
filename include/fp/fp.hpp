@@ -25,6 +25,11 @@ namespace FP_NAMESPACE
     template <typename T>
     static inline T scan_max(const T* in, const std::size_t n)
     {
+        if (n == 0)
+        {
+            return 0;
+        }
+
         T maximum = in[0];
         #pragma omp simd reduction(max : maximum)
         for (std::size_t i = 0; i < n; ++i)
@@ -44,6 +49,11 @@ namespace FP_NAMESPACE
     template <typename T>
     static inline T scan_absmax(const T* in, const std::size_t n)
     {
+        if (n == 0)
+        {
+            return 0;
+        }
+
         T maximum = in[0];
 
         #pragma omp simd reduction(max : maximum)
@@ -64,6 +74,11 @@ namespace FP_NAMESPACE
     template <typename T>
     static inline T scan_min(const T* in, const std::size_t n)
     {
+        if (n == 0)
+        {
+            return 0;
+        }
+
         T minimum = in[0];
     
         #pragma omp simd reduction(min : minimum)
@@ -84,6 +99,11 @@ namespace FP_NAMESPACE
     template <typename T>
     static inline T scan_absmin(const T* in, const std::size_t n)
     {
+        if (n == 0)
+        {
+            return 0;
+        }
+
         T minimum = in[0];
 
         #pragma omp simd reduction(min : minimum)
@@ -132,8 +152,15 @@ namespace FP_NAMESPACE
             //! \return number of bytes
             static std::size_t memory_footprint_bytes(const std::size_t n)
             {
-                const std::size_t num_packs = (n + pack_size - 1) / pack_size;
-                return num_packs * pack_bytes;
+                if (n == 0)
+                {
+                    return 0;
+                }
+                else
+                {
+                    const std::size_t num_packs = (n + pack_size - 1) / pack_size;
+                    return num_packs * pack_bytes;
+                }
             }
 
             //! \brief Number of elements of the 'pack' type needed to compress a sequence of 'n' 'TB'-bit words
@@ -154,8 +181,12 @@ namespace FP_NAMESPACE
             //! \param n number of 'TB'-bit words to be packed
             static void pack(type* out, const std::uint32_t* in, const std::size_t n)
             {
-                // pack as many compressed words as possible in a 'pack'
-                
+                if (n == 0)
+                {
+                    return;
+                }
+
+                // pack as many compressed words as possible in a 'pack'   
                 *out = static_cast<type>(in[0]);
                 for (std::size_t i = 1; i < n; ++i)
                 {
@@ -172,6 +203,11 @@ namespace FP_NAMESPACE
             //! \param n number of 'TB'-bit words to be unpacked
             static void unpack(std::uint32_t* out, const type* in, const std::size_t n)
             {
+                if (n == 0)
+                {
+                    return;
+                }
+
                 // unpack words into 'out'
                 for (std::size_t i = 0; i < n; ++i)
                 {
@@ -272,6 +308,11 @@ namespace FP_NAMESPACE
             //! \return number of bytes
             static std::size_t memory_footprint_bytes(const std::size_t n)
             {
+                if (n == 0)
+                {
+                    return 0;
+                }
+
                 #if defined(FP_RESCALE)
                 // we need to store the scaling factor as well
                 const std::size_t n_scaling_factor = (sizeof(type) * 8 + (1 + BE + BM - 1)) / (1 + BE + BM - 1);
@@ -307,6 +348,11 @@ namespace FP_NAMESPACE
         template <std::uint32_t BE, std::uint32_t BM, typename X = typename std::enable_if<default_case(BE, BM) && !special_case(BE, BM)>::type>
         static void compress(typename format<BE, BM>::type* out, const T* in, const std::size_t n, const X* ptr = nullptr)
         {
+            if (n == 0)
+            {
+                return;
+            }
+
             using fp_type = typename format<BE, BM>::type;
 
             // bit masks to extract IEEE-754 exponent and mantissa of the single-type (float)
@@ -390,6 +436,11 @@ namespace FP_NAMESPACE
         template <std::uint32_t BE, std::uint32_t BM, typename X = typename std::enable_if<default_case(BE, BM) && !special_case(BE, BM)>::type>
         static void decompress(T* out, const typename format<BE, BM>::type* in, const std::size_t n, const X* ptr = nullptr)
         {
+            if (n == 0)
+            {
+                return;
+            }
+
             using fp_type = typename format<BE, BM>::type;
 
             #if defined(FP_RESCALE)
@@ -498,6 +549,11 @@ namespace FP_NAMESPACE
     template <>
     inline void fp<double>::compress<11, 52>(typename fp<double>::format<11, 52>::type* out, const double* in, const std::size_t n)
     {
+        if (n == 0)
+        {
+            return;
+        }
+
         // switch back to 'double'
         double* ptr_out = reinterpret_cast<double*>(out);
 
@@ -517,6 +573,11 @@ namespace FP_NAMESPACE
     template <>
     inline void fp<double>::decompress<11, 52>(double* out, const typename fp<double>::format<11, 52>::type* in, const std::size_t n)
     {
+        if (n == 0)
+        {
+            return;
+        }
+
         // switch back to 'double'
         const double* ptr_in = reinterpret_cast<const double*>(in);
 
@@ -558,6 +619,11 @@ namespace FP_NAMESPACE
     template <>
     inline void fp<float>::compress<8, 23>(typename fp<float>::format<8, 23>::type* out, const float* in, const std::size_t n)
     {
+        if (n == 0)
+        {
+            return;
+        }
+
         // switch back to 'float'
         float* ptr_out = reinterpret_cast<float*>(out);
 
@@ -577,6 +643,11 @@ namespace FP_NAMESPACE
     template <>
     inline void fp<float>::decompress<8, 23>(float* out, const typename fp<float>::format<8, 23>::type* in, const std::size_t n)
     {
+        if (n == 0)
+        {
+            return;
+        }
+
         // switch back to 'float'
         const float* ptr_in = reinterpret_cast<const float*>(in);
 
@@ -618,6 +689,11 @@ namespace FP_NAMESPACE
     template <>
     inline void fp<double>::compress<8, 23>(typename fp<double>::format<8, 23>::type* out, const double* in, const std::size_t n)
     {
+        if (n == 0)
+        {
+            return;
+        }
+
         // switch back to 'float'
         float* ptr_out = reinterpret_cast<float*>(out);
 
@@ -632,6 +708,11 @@ namespace FP_NAMESPACE
     template <>
     inline void fp<double>::decompress<8, 23>(double* out, const typename fp<double>::format<8, 23>::type* in, const std::size_t n)
     {
+        if (n == 0)
+        {
+            return;
+        }
+
         // switch back to 'float'
         const float* ptr_in = reinterpret_cast<const float*>(in);
 
@@ -666,6 +747,11 @@ namespace FP_NAMESPACE
     template <>
     inline void fp<double>::compress<8, 7>(typename format<8, 7>::type* out, const double* in, const std::size_t n)
     {
+        if (n == 0)
+        {
+            return;
+        }
+
         #pragma omp simd
         for (std::size_t i = 0; i < n; ++i)
         {
@@ -679,6 +765,11 @@ namespace FP_NAMESPACE
     template <>
     inline void fp<double>::decompress<8, 7>(double* out, const typename format<8, 7>::type* in, const std::size_t n)
     {
+        if (n == 0)
+        {
+            return;
+        }
+
         #pragma omp simd
         for (std::size_t i = 0; i < n; ++i)
         {
@@ -708,6 +799,11 @@ namespace FP_NAMESPACE
     template <>
     inline void fp<float>::compress<8, 7>(typename format<8, 7>::type* out, const float* in, const std::size_t n)
     {
+        if (n == 0)
+        {
+            return;
+        }
+
         #pragma omp simd
         for (std::size_t i = 0; i < n; ++i)
         {
@@ -720,6 +816,11 @@ namespace FP_NAMESPACE
     template <>
     inline void fp<float>::decompress<8, 7>(float* out, const typename format<8, 7>::type* in, const std::size_t n)
     {
+        if (n == 0)
+        {
+            return;
+        }
+
         #pragma omp simd
         for (std::size_t i = 0; i < n; ++i)
         {
@@ -739,7 +840,14 @@ namespace FP_NAMESPACE
 
         static inline std::size_t memory_footprint_bytes(const std::size_t n)
         {
-            return (2 * sizeof(float) + (n * sizeof(type)));
+            if (n == 0)
+            {
+                return 0;
+            }
+            else
+            {
+                return (2 * sizeof(float) + (n * sizeof(type)));
+            }
         }
 
         static inline std::size_t memory_footprint_elements(const std::size_t n)
@@ -752,6 +860,11 @@ namespace FP_NAMESPACE
     template <>
     inline void fp<double>::compress<0, 15>(typename format<0, 15>::type* out, const double* in, const std::size_t n)
     {
+        if (n == 0)
+        {
+            return;
+        }
+
         float minimum = scan_min(in, n);
         float maximum = scan_max(in, n);
 
@@ -776,6 +889,11 @@ namespace FP_NAMESPACE
     template <>
     inline void fp<double>::decompress<0, 15>(double* out, const typename format<0, 15>::type* in, const std::size_t n)
     {
+        if (n == 0)
+        {
+            return;
+        }
+
         const float* fptr_in = reinterpret_cast<const float*>(in);
         const float a = fptr_in[0];
         const float b = fptr_in[1];
@@ -803,7 +921,14 @@ namespace FP_NAMESPACE
 
         static inline std::size_t memory_footprint_bytes(const std::size_t n)
         {
-            return (2 * sizeof(float) + (n * sizeof(type)));
+            if (n == 0)
+            {
+                return 0;
+            }
+            else
+            {
+                return (2 * sizeof(float) + (n * sizeof(type)));
+            }
         }
 
         static inline std::size_t memory_footprint_elements(const std::size_t n)
@@ -816,6 +941,11 @@ namespace FP_NAMESPACE
     template <>
     inline void fp<float>::compress<0, 15>(typename format<0, 15>::type* out, const float* in, const std::size_t n)
     {
+        if (n == 0)
+        {
+            return;
+        }
+
         float minimum = scan_min(in, n);
         float maximum = scan_max(in, n);
 
@@ -840,6 +970,11 @@ namespace FP_NAMESPACE
     template <>
     inline void fp<float>::decompress<0, 15>(float* out, const typename format<0, 15>::type* in, const std::size_t n)
     {
+        if (n == 0)
+        {
+            return;
+        }
+
         const float* fptr_in = reinterpret_cast<const float*>(in);
         const float a = fptr_in[0];
         const float b = fptr_in[1];
@@ -865,7 +1000,14 @@ namespace FP_NAMESPACE
 
         static inline std::size_t memory_footprint_bytes(const std::size_t n)
         {
-            return (2 * sizeof(float) + ((n + 1) / 2) * 3 * sizeof(type));
+            if (n == 0)
+            {
+                return 0;
+            }
+            else
+            {
+                return (2 * sizeof(float) + ((n + 1) / 2) * 3 * sizeof(type));
+            }
         }
 
         static inline std::size_t memory_footprint_elements(const std::size_t n)
@@ -878,6 +1020,11 @@ namespace FP_NAMESPACE
     template <>
     inline void fp<double>::compress<0, 11>(typename format<0, 11>::type* out, const double* in, const std::size_t n)
     {
+        if (n == 0)
+        {
+            return;
+        }
+
         float minimum = scan_min(in, n);
         float maximum = scan_max(in, n);
 
@@ -910,6 +1057,11 @@ namespace FP_NAMESPACE
     template <>
     inline void fp<double>::decompress<0, 11>(double* out, const typename format<0, 11>::type* in, const std::size_t n)
     {
+        if (n == 0)
+        {
+            return;
+        }
+
         const float* fptr_in = reinterpret_cast<const float*>(in);
         const float a = fptr_in[0];
         const float b = fptr_in[1];
@@ -941,7 +1093,14 @@ namespace FP_NAMESPACE
 
         static inline std::size_t memory_footprint_bytes(const std::size_t n)
         {
-            return (2 * sizeof(float) + ((n + 1) / 2) * 3 * sizeof(type));
+            if (n == 0)
+            {
+                return 0;
+            }
+            else
+            {
+                return (2 * sizeof(float) + ((n + 1) / 2) * 3 * sizeof(type));
+            }
         }
 
         static inline std::size_t memory_footprint_elements(const std::size_t n)
@@ -954,6 +1113,11 @@ namespace FP_NAMESPACE
     template <>
     inline void fp<float>::compress<0, 11>(typename format<0, 11>::type* out, const float* in, const std::size_t n)
     {
+        if (n == 0)
+        {
+            return;
+        }
+
         float minimum = scan_min(in, n);
         float maximum = scan_max(in, n);
 
@@ -986,6 +1150,11 @@ namespace FP_NAMESPACE
     template <>
     inline void fp<float>::decompress<0, 11>(float* out, const typename format<0, 11>::type* in, const std::size_t n)
     {
+        if (n == 0)
+        {
+            return;
+        }
+
         const float* fptr_in = reinterpret_cast<const float*>(in);
         const float a = fptr_in[0];
         const float b = fptr_in[1];
@@ -1020,7 +1189,14 @@ namespace FP_NAMESPACE
 
         static inline std::size_t memory_footprint_bytes(const std::size_t n)
         {
-            return (2 * sizeof(float) + (n * sizeof(type)));
+            if (n == 0)
+            {
+                return 0;
+            }
+            else
+            {
+                return (2 * sizeof(float) + (n * sizeof(type)));
+            }
         }
 
         static inline std::size_t memory_footprint_elements(const std::size_t n)
@@ -1033,6 +1209,11 @@ namespace FP_NAMESPACE
     template <>
     inline void fp<double>::compress<0, 7>(typename format<0, 7>::type* out, const double* in, const std::size_t n)
     {
+        if (n == 0)
+        {
+            return;
+        }
+
         float minimum = scan_min(in, n);
         float maximum = scan_max(in, n);
 
@@ -1057,6 +1238,11 @@ namespace FP_NAMESPACE
     template <>
     inline void fp<double>::decompress<0, 7>(double* out, const typename format<0, 7>::type* in, const std::size_t n)
     {
+        if (n == 0)
+        {
+            return;
+        }
+
         const float* fptr_in = reinterpret_cast<const float*>(in);
         const float a = fptr_in[0];
         const float b = fptr_in[1];
@@ -1080,7 +1266,14 @@ namespace FP_NAMESPACE
 
         static inline std::size_t memory_footprint_bytes(const std::size_t n)
         {
-            return (2 * sizeof(float) + (n * sizeof(type)));
+            if (n == 0)
+            {
+                return 0;
+            }
+            else
+            {
+                return (2 * sizeof(float) + (n * sizeof(type)));
+            }
         }
 
         static inline std::size_t memory_footprint_elements(const std::size_t n)
@@ -1093,6 +1286,11 @@ namespace FP_NAMESPACE
     template <>
     inline void fp<float>::compress<0, 7>(typename format<0, 7>::type* out, const float* in, const std::size_t n)
     {
+        if (n == 0)
+        {
+            return;
+        }
+
         float minimum = scan_min(in, n);
         float maximum = scan_max(in, n);
 
@@ -1117,6 +1315,11 @@ namespace FP_NAMESPACE
     template <>
     inline void fp<float>::decompress<0, 7>(float* out, const typename format<0, 7>::type* in, const std::size_t n)
     {
+        if (n == 0)
+        {
+            return;
+        }
+
         const float* fptr_in = reinterpret_cast<const float*>(in);
         const float a = fptr_in[0];
         const float b = fptr_in[1];
