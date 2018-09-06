@@ -104,7 +104,7 @@ namespace FP_NAMESPACE
 		{
 			cblas_stpsv(__Order, __Uplo, __TransA, __Diag, __N, __Ap, __X, __incX);
 		}
-        }
+	}
 }
 
 #endif

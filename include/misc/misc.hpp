@@ -124,9 +124,8 @@ namespace FP_NAMESPACE
         template <typename F>
         static void body(F func)
         {
-                
-                loop<I - 1, J>::body(func);
-                loop_nest_level_1<J, I>::execute(func);
+            loop<I - 1, J>::body(func);
+            loop_nest_level_1<J, I>::execute(func);
                 
         }
     };
@@ -139,7 +138,7 @@ namespace FP_NAMESPACE
         template <typename F>
         static void body(F func)
         {
-                loop_nest_level_1<J, 0>::execute(func);
+            loop_nest_level_1<J, 0>::execute(func);
         }
     };
 
@@ -152,8 +151,8 @@ namespace FP_NAMESPACE
         template <typename F>
         static void body(F func)
         {
-                loop_pow2<I / 2, J>::body(func);
-                loop_pow2_nest_level_1<J, I>::execute(func);
+            loop_pow2<I / 2, J>::body(func);
+            loop_pow2_nest_level_1<J, I>::execute(func);
         }
     };
 
@@ -165,7 +164,7 @@ namespace FP_NAMESPACE
         template <typename F>
         static void body(F func)
         {
-                loop_pow2_nest_level_1<J, 1>::execute(func);
+            loop_pow2_nest_level_1<J, 1>::execute(func);
         }
     };
 
@@ -177,8 +176,8 @@ namespace FP_NAMESPACE
         template <typename F>
         static void body(F func)
         {
-                loop_triangle<N - 1>::body(func);
-                loop_nest_level_1<N, N>::execute(func);
+            loop_triangle<N - 1>::body(func);
+            loop_nest_level_1<N, N>::execute(func);
         }
     };
 
@@ -188,7 +187,7 @@ namespace FP_NAMESPACE
         template <typename F>
         static void body(F func)
         {
-                loop_nest_level_1<0, 0>::execute(func);
+            loop_nest_level_1<0, 0>::execute(func);
         }
     };
 
@@ -200,8 +199,8 @@ namespace FP_NAMESPACE
         template <typename F>
         static void body(F func)
         {
-                loop_triangle_pow2<N / 2>::body(func);
-                loop_pow2_nest_level_1<N, N>::execute(func);
+            loop_triangle_pow2<N / 2>::body(func);
+            loop_pow2_nest_level_1<N, N>::execute(func);
         }
     };
 
@@ -211,7 +210,7 @@ namespace FP_NAMESPACE
         template <typename F>
         static void body(F func)
         {
-                loop_pow2_nest_level_1<1, 1>::execute(func);
+            loop_pow2_nest_level_1<1, 1>::execute(func);
         }
     };
 }
