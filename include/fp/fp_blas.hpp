@@ -31,27 +31,27 @@ namespace FP_NAMESPACE
         constexpr std::size_t alignment = 32;
         #endif
 
-		//! matrix types: lower, upper
-		enum class triangular_matrix_type { lower = 0, upper = 1 };
+        //! matrix types: lower, upper
+        enum class triangular_matrix_type { lower = 0, upper = 1 };
 
-		//! \brief General matrix
-		//!
-		//! \tparam T data type (of the matrix elements)
-		//! \tparam BE number of bits in the exponent
-		//! \tparam BM number of bits in the mantissa
-		template <typename T, std::uint32_t BE = fp<T>::default_bits_exponent(), std::uint32_t BM = fp<T>::default_bits_mantissa()>
-		class matrix
-		{
+        //! \brief General matrix
+        //!
+        //! \tparam T data type (of the matrix elements)
+        //! \tparam BE number of bits in the exponent
+        //! \tparam BM number of bits in the mantissa
+        template <typename T, std::uint32_t BE = fp<T>::default_bits_exponent(), std::uint32_t BM = fp<T>::default_bits_mantissa()>
+        class matrix
+        {
             static_assert(std::is_same<T, double>::value || std::is_same<T, float>::value, "error: only 'double' and 'float' type is supported");
 
-		public:
+        public:
 
-			// extent of the matrix: 'm' rows and 'n' columns
-			const std::size_t m;
-			const std::size_t n;
+            // extent of the matrix: 'm' rows and 'n' columns
+            const std::size_t m;
+            const std::size_t n;
 
-			// fp type for data compression
-			using fp_type = typename FP_NAMESPACE::fp<T>::template format<BE, BM>::type;
+            // fp type for data compression
+            using fp_type = typename FP_NAMESPACE::fp<T>::template format<BE, BM>::type;
             using fp_remapped_type = typename FP_NAMESPACE::internal::fp_remap<T, BE, BM>::type;
 
         protected:
@@ -61,19 +61,19 @@ namespace FP_NAMESPACE
 
             // compressed matrix
             std::vector<fp_type> memory;
-			const fp_type* compressed_data;
+            const fp_type* compressed_data;
 
-			const std::size_t num_blocks_a;
-			const std::size_t num_elements_a;
+            const std::size_t num_blocks_a;
+            const std::size_t num_elements_a;
 
-			const std::size_t num_blocks_b;
-			const std::size_t num_elements_b;
+            const std::size_t num_blocks_b;
+            const std::size_t num_elements_b;
 
-			const std::size_t num_blocks_c;
-			const std::size_t num_elements_c;
+            const std::size_t num_blocks_c;
+            const std::size_t num_elements_c;
 
-			const std::size_t num_blocks_d;
-			const std::size_t num_elements_d;
+            const std::size_t num_blocks_d;
+            const std::size_t num_elements_d;
 
             const std::size_t num_elements;
 
@@ -85,10 +85,10 @@ namespace FP_NAMESPACE
             template <typename TT>
             matrix(const TT* data, const std::array<std::size_t, 1>& extent, const std::size_t ld_data, triangular_matrix_type MT = triangular_matrix_type::upper, const std::size_t bs = bs_default)
                 :
-				m(extent[0]), // set, but not to be used
+                m(extent[0]), // set, but not to be used
                 n(extent[0]),
                 bs(bs),
-				compressed_data(nullptr),
+                compressed_data(nullptr),
                 //  a b b | c
                 //  0 a b | c
                 //  0 0 a | c
@@ -104,7 +104,7 @@ namespace FP_NAMESPACE
                 num_elements_d(fp<T>::template format<BE, BM>::memory_footprint_elements(((n - (n / bs) * bs) * (n - (n / bs) * bs + 1)) / 2)),
                 num_elements(num_blocks_a * num_elements_a + num_blocks_b * num_elements_b + num_blocks_c * num_elements_c + num_blocks_d * num_elements_d)
             {
-				;
+                ;
             }
 
             // template function providing a frame for different blas2 kernel implementations
@@ -217,21 +217,21 @@ namespace FP_NAMESPACE
                 }
             }
 
-		public:
+    public:
 
-			// (default) block size
-			static constexpr std::size_t bs_default = 64;
+            // (default) block size
+            static constexpr std::size_t bs_default = 64;
 
-			// constructor
-			matrix() = delete;
+            // constructor
+            matrix() = delete;
 
             template <typename TT>
-			matrix(const TT* data, const std::array<std::size_t, 2>& extent, const std::size_t ld_data, const std::size_t bs = bs_default)
-				:
-				m(extent[0]),
-				n(extent[1]),
-				bs(bs),
-				compressed_data(nullptr),
+            matrix(const TT* data, const std::array<std::size_t, 2>& extent, const std::size_t ld_data, const std::size_t bs = bs_default)
+                :
+                m(extent[0]),
+                n(extent[1]),
+                bs(bs),
+                compressed_data(nullptr),
                 //  a a a | b
                 //  a a a | b
                 // -------+---
@@ -245,24 +245,24 @@ namespace FP_NAMESPACE
                 num_blocks_d((((m + bs - 1) / bs) - (m / bs)) * (((n + bs - 1) / bs) - (n / bs))),
                 num_elements_d(fp<T>::template format<BE, BM>::memory_footprint_elements((m - (m / bs) * bs) * (n - (n / bs) * bs))),
                 num_elements(num_blocks_a * num_elements_a + num_blocks_b * num_elements_b + num_blocks_c * num_elements_c + num_blocks_d * num_elements_d)
-			{			
-				if (std::is_same<TT, fp_type>::value)
-				{
-					// 'data' points to a compressed matrix
-					compressed_data = reinterpret_cast<const fp_type*>(data);
-				}
-				else
-				{
-					// allocate memory for the compressed matrix
-                	memory.reserve(num_elements);
+            {			
+                if (std::is_same<TT, fp_type>::value)
+                {
+                    // 'data' points to a compressed matrix
+                    compressed_data = reinterpret_cast<const fp_type*>(data);
+                }
+                else
+                {
+                    // allocate memory for the compressed matrix
+                    memory.reserve(num_elements);
 
-					// compress the matrix
-					compress(reinterpret_cast<const T*>(data), &memory[0], extent, ld_data, bs, this);
+                    // compress the matrix
+                    compress(reinterpret_cast<const T*>(data), &memory[0], extent, ld_data, bs, this);
 
                     // set up the internal pointer to the compressed matrix
-					compressed_data = reinterpret_cast<const fp_type*>(&memory[0]);
-				}
-			}
+                    compressed_data = reinterpret_cast<const fp_type*>(&memory[0]);
+                }
+            }
 
             template <typename TT>
             matrix(const std::vector<TT>& data, const std::array<std::size_t, 2>& extent, const std::size_t ld_data, const std::size_t bs = bs_default)
@@ -272,95 +272,95 @@ namespace FP_NAMESPACE
                 ;
             }
 
-			virtual ~matrix()
-			{ 
-				compressed_data = nullptr; 
-			}
-			
-			static ptrdiff_t compress(const T* data, fp_type* compressed_data, const std::array<std::size_t, 2>& extent, const std::size_t ld_data, const std::size_t bs = bs_default, matrix* mat = nullptr)
-			{
-				if (data == nullptr || compressed_data == nullptr)
-				{
-					std::cerr << "error in matrix::compress: any of the pointers is a nullptr" << std::endl;
-					return 0;
-				}
+            virtual ~matrix()
+            { 
+                compressed_data = nullptr; 
+            }
+            
+            static ptrdiff_t compress(const T* data, fp_type* compressed_data, const std::array<std::size_t, 2>& extent, const std::size_t ld_data, const std::size_t bs = bs_default, matrix* mat = nullptr)
+            {
+                if (data == nullptr || compressed_data == nullptr)
+                {
+                    std::cerr << "error in matrix::compress: any of the pointers is a nullptr" << std::endl;
+                    return 0;
+                }
 
-				const std::size_t m = extent[0];
-				const std::size_t n = extent[1];
+                const std::size_t m = extent[0];
+                const std::size_t n = extent[1];
                 if (m == 0 || n == 0)
                 {
                     return 0;
                 }
 
-				const std::size_t num_elements_a = (mat != nullptr ? mat->num_elements_a : fp<T>::template format<BE, BM>::memory_footprint_elements(bs * bs));
-				const std::size_t num_elements_b = (mat != nullptr ? mat->num_elements_b : fp<T>::template format<BE, BM>::memory_footprint_elements(bs * (n - (n / bs) * bs)));
-				const std::size_t num_elements_c = (mat != nullptr ? mat->num_elements_c : fp<T>::template format<BE, BM>::memory_footprint_elements((m - (m / bs) * bs) * bs));
-				const std::size_t num_elements_d = (mat != nullptr ? mat->num_elements_d : fp<T>::template format<BE, BM>::memory_footprint_elements((m - (m / bs) * bs) * (n - (n / bs) * bs)));
+                const std::size_t num_elements_a = (mat != nullptr ? mat->num_elements_a : fp<T>::template format<BE, BM>::memory_footprint_elements(bs * bs));
+                const std::size_t num_elements_b = (mat != nullptr ? mat->num_elements_b : fp<T>::template format<BE, BM>::memory_footprint_elements(bs * (n - (n / bs) * bs)));
+                const std::size_t num_elements_c = (mat != nullptr ? mat->num_elements_c : fp<T>::template format<BE, BM>::memory_footprint_elements((m - (m / bs) * bs) * bs));
+                const std::size_t num_elements_d = (mat != nullptr ? mat->num_elements_d : fp<T>::template format<BE, BM>::memory_footprint_elements((m - (m / bs) * bs) * (n - (n / bs) * bs)));
 
-				// compress the matrix block by block
-				alignas(alignment) T buffer[bs * bs];
-				fp_type* ptr = compressed_data;
+                // compress the matrix block by block
+                alignas(alignment) T buffer[bs * bs];
+                fp_type* ptr = compressed_data;
 
-				for (std::size_t j = 0; j < m; j += bs)
-				{
-					for (std::size_t i = 0; i < n; i += bs)
-					{
-						const std::size_t mm = std::min(m - j, bs);
-						const std::size_t nn = std::min(n - i, bs);
+                for (std::size_t j = 0; j < m; j += bs)
+                {
+                    for (std::size_t i = 0; i < n; i += bs)
+                    {
+                        const std::size_t mm = std::min(m - j, bs);
+                        const std::size_t nn = std::min(n - i, bs);
 
-						// copy blocks into the 'buffer'
-						for (std::size_t jj = 0; jj < mm; ++jj)
-						{
-							#pragma omp simd
-							for (std::size_t ii = 0; ii < nn; ++ii)
-							{
-								buffer[jj * nn + ii] = data[(j + jj) * ld_data + (i + ii)];
-							}
-						}
+                        // copy blocks into the 'buffer'
+                        for (std::size_t jj = 0; jj < mm; ++jj)
+                        {
+                            #pragma omp simd
+                            for (std::size_t ii = 0; ii < nn; ++ii)
+                            {
+                                buffer[jj * nn + ii] = data[(j + jj) * ld_data + (i + ii)];
+                            }
+                        }
 
-						// compress the 'buffer'
-						fp<T>::template compress<BE, BM>(ptr, &buffer[0], mm * nn);
-						
-						// move on to the next block
-						ptr += ((n - i) < bs ? num_elements_b : ((m - j) < bs ? num_elements_c : num_elements_a));
-					}
-				}
+                        // compress the 'buffer'
+                        fp<T>::template compress<BE, BM>(ptr, &buffer[0], mm * nn);
+                        
+                        // move on to the next block
+                        ptr += ((n - i) < bs ? num_elements_b : ((m - j) < bs ? num_elements_c : num_elements_a));
+                    }
+                }
 
-				if (num_elements_d != 0)
-				{
-					ptr = ptr - (num_elements_b != 0 ? num_elements_b : num_elements_c) + num_elements_d;
-				}
+                if (num_elements_d != 0)
+                {
+                    ptr = ptr - (num_elements_b != 0 ? num_elements_b : num_elements_c) + num_elements_d;
+                }
 
-				return (ptr - compressed_data);
-			}
+                return (ptr - compressed_data);
+            }
 
-			static std::size_t memory_footprint_elements(const std::array<std::size_t, 2>& extent, const std::size_t bs = bs_default)
-			{
-				const std::size_t m = extent[0];
-				const std::size_t n = extent[1];
+            static std::size_t memory_footprint_elements(const std::array<std::size_t, 2>& extent, const std::size_t bs = bs_default)
+            {
+                const std::size_t m = extent[0];
+                const std::size_t n = extent[1];
                 if (m == 0 || n == 0)
                 {
                     return 0;
                 }
 
-				const std::size_t num_elements_a = fp<T>::template format<BE, BM>::memory_footprint_elements(bs * bs);
-				const std::size_t num_elements_b = fp<T>::template format<BE, BM>::memory_footprint_elements(bs * (n - (n / bs) * bs));
-				const std::size_t num_elements_c = fp<T>::template format<BE, BM>::memory_footprint_elements((m - (m / bs) * bs) * bs);
-				const std::size_t num_elements_d = fp<T>::template format<BE, BM>::memory_footprint_elements((m - (m / bs) * bs) * (n - (n / bs) * bs));
+                const std::size_t num_elements_a = fp<T>::template format<BE, BM>::memory_footprint_elements(bs * bs);
+                const std::size_t num_elements_b = fp<T>::template format<BE, BM>::memory_footprint_elements(bs * (n - (n / bs) * bs));
+                const std::size_t num_elements_c = fp<T>::template format<BE, BM>::memory_footprint_elements((m - (m / bs) * bs) * bs);
+                const std::size_t num_elements_d = fp<T>::template format<BE, BM>::memory_footprint_elements((m - (m / bs) * bs) * (n - (n / bs) * bs));
 
-				const std::size_t num_blocks_a = (m / bs) * (n / bs);
-				const std::size_t num_blocks_b = (m / bs) * (((n + bs - 1) / bs) - (n / bs));
-				const std::size_t num_blocks_c = (((m + bs - 1) / bs) - (m / bs)) * (n / bs);
-				const std::size_t num_blocks_d = (((m + bs - 1) / bs) - (m / bs)) * (((n + bs - 1) / bs) - (n / bs));
+                const std::size_t num_blocks_a = (m / bs) * (n / bs);
+                const std::size_t num_blocks_b = (m / bs) * (((n + bs - 1) / bs) - (n / bs));
+                const std::size_t num_blocks_c = (((m + bs - 1) / bs) - (m / bs)) * (n / bs);
+                const std::size_t num_blocks_d = (((m + bs - 1) / bs) - (m / bs)) * (((n + bs - 1) / bs) - (n / bs));
 
-				return (num_blocks_a * num_elements_a + num_blocks_b * num_elements_b + num_blocks_c * num_elements_c + num_blocks_d * num_elements_d);
-			}
+                return (num_blocks_a * num_elements_a + num_blocks_b * num_elements_b + num_blocks_c * num_elements_c + num_blocks_d * num_elements_d);
+            }
 
             static std::size_t memory_footprint_bytes(const std::array<std::size_t, 2>& extent, const std::size_t bs = bs_default)
-			{
+            {
                 return memory_footprint_elements(extent, bs) * sizeof(fp_type);
             }
-			
+            
             virtual std::size_t memory_footprint_elements() const
             {
                 return num_elements;
@@ -371,7 +371,7 @@ namespace FP_NAMESPACE
                 return memory_footprint_elements() * sizeof(fp_type);
             }
 
-			//! \brief General matrix vector multiply
+            //! \brief General matrix vector multiply
             //!
             //! Computes y = alpha * A(T) * x + beta * y
             virtual void matrix_vector(const bool transpose, const T alpha, const T* x, const T beta, T* y) const
@@ -384,7 +384,7 @@ namespace FP_NAMESPACE
                 blas2_frame([&](const bool transpose, const T alpha, const T* x, T* y)
                 { 
                     // allocate local memory
-		            alignas(alignment) T buffer_a[bs * bs];
+                    alignas(alignment) T buffer_a[bs * bs];
 
                     // apply matrix to 'x' and add the result to 'y'
                     for (std::size_t j = 0, k = 0; j < m; j += bs)
@@ -423,35 +423,35 @@ namespace FP_NAMESPACE
             {
                 // TODO remove this somehow
             }
-		};
+        };
 
         //! \brief Triangular matrix
-		//!
-		//! \tparam T data type (of the matrix elements)
-		//! \tparam BE number of bits in the exponent
-		//! \tparam BM number of bits in the mantissa
-		template <typename T, triangular_matrix_type MT = triangular_matrix_type::upper, std::uint32_t BE = fp<T>::default_bits_exponent(), std::uint32_t BM = fp<T>::default_bits_mantissa()>
-		class triangular_matrix : public matrix<T, BE, BM>
-		{
+        //!
+        //! \tparam T data type (of the matrix elements)
+        //! \tparam BE number of bits in the exponent
+        //! \tparam BM number of bits in the mantissa
+        template <typename T, triangular_matrix_type MT = triangular_matrix_type::upper, std::uint32_t BE = fp<T>::default_bits_exponent(), std::uint32_t BM = fp<T>::default_bits_mantissa()>
+        class triangular_matrix : public matrix<T, BE, BM>
+        {
             static_assert(std::is_same<T, double>::value || std::is_same<T, float>::value, "error: only 'double' and 'float' type is supported");
 
-		public:
+        public:
 
-			// extent of the matrix
+            // extent of the matrix
             using matrix<T, BE, BM>::n;
 
-			// fp type for data compression
-			using fp_type = typename fp<T>::template format<BE, BM>::type;
+            // fp type for data compression
+            using fp_type = typename fp<T>::template format<BE, BM>::type;
             using fp_remapped_type = typename FP_NAMESPACE::internal::fp_remap<T, BE, BM>::type;
-			
-		private:
+            
+        private:
 
             // block size
             using matrix<T, BE, BM>::bs;
 
             // compresse matrix
             using matrix<T, BE, BM>::memory;
-			using matrix<T, BE, BM>::compressed_data;
+            using matrix<T, BE, BM>::compressed_data;
 
             using matrix<T, BE, BM>::num_blocks_a;
             using matrix<T, BE, BM>::num_elements_a;
@@ -491,21 +491,21 @@ namespace FP_NAMESPACE
                 {
                     const std::size_t n_blocks = (n + bs - 1) / bs;
                     const std::size_t n_a = bj;
-					// the computation of 'n_b' and 'n_c' assumes 'num_elements_c != 0'
-					const std::size_t n_b = (bj * (bj + 1)) / 2 - bj + (bj < (n_blocks - 1) ? bi : 0);
+                    // the computation of 'n_b' and 'n_c' assumes 'num_elements_c != 0'
+                    const std::size_t n_b = (bj * (bj + 1)) / 2 - bj + (bj < (n_blocks - 1) ? bi : 0);
                     const std::size_t n_c = (bj == (n_blocks - 1) ? bi : 0);
 
-					// fix 'num_elements_c == 0' case
+                    // fix 'num_elements_c == 0' case
                     return (n_a * num_elements_a + n_b * num_elements_b + n_c * (num_elements_c != 0 ? num_elements_c : num_elements_b));
                 }
             }
 
         public:
 
-			// (default) block size
-			static constexpr std::size_t bs_default = matrix<T, BE, BM>::bs_default;
+            // (default) block size
+            static constexpr std::size_t bs_default = matrix<T, BE, BM>::bs_default;
 
-			// constructor
+            // constructor
             triangular_matrix() = delete;
 
             template <typename TT>
@@ -513,22 +513,22 @@ namespace FP_NAMESPACE
                 :
                 matrix<T, BE, BM>(data, extent, ld_data, MT, bs)
             {
-				if (std::is_same<TT, fp_type>::value)
-				{
-					// 'data' points to a compressed matrix
-					compressed_data = reinterpret_cast<const fp_type*>(data);
-				}
-				else
-				{
-					// allocate memory for the compressed matrix
-					memory.reserve(num_elements);
+                if (std::is_same<TT, fp_type>::value)
+                {
+                    // 'data' points to a compressed matrix
+                    compressed_data = reinterpret_cast<const fp_type*>(data);
+                }
+                else
+                {
+                    // allocate memory for the compressed matrix
+                    memory.reserve(num_elements);
 
-					// compress the matrix
-					compress(reinterpret_cast<const T*>(data), &memory[0], extent, ld_data, bs, this);
+                    // compress the matrix
+                    compress(reinterpret_cast<const T*>(data), &memory[0], extent, ld_data, bs, this);
 
                     // set up the internal pointer to the compressed matrix
-					compressed_data = reinterpret_cast<const fp_type*>(&memory[0]);
-				}
+                    compressed_data = reinterpret_cast<const fp_type*>(&memory[0]);
+                }
             }
 
             template <typename TT>
@@ -540,46 +540,46 @@ namespace FP_NAMESPACE
             }
 
             template <typename TT>
-			triangular_matrix(const TT* data, const std::array<std::size_t, 2>& extent, const std::size_t ld_data, const std::size_t bs = bs_default)
-				:
-				triangular_matrix(data, std::array<std::size_t, 1>({extent[0]}), ld_data, bs)
-			{
-				;
-			}
+            triangular_matrix(const TT* data, const std::array<std::size_t, 2>& extent, const std::size_t ld_data, const std::size_t bs = bs_default)
+                :
+                triangular_matrix(data, std::array<std::size_t, 1>({extent[0]}), ld_data, bs)
+            {
+                ;
+            }
 
             template <typename TT>
-			triangular_matrix(const std::vector<TT>& data, const std::array<std::size_t, 2>& extent, const std::size_t ld_data, const std::size_t bs = bs_default)
-				:
-				triangular_matrix(&data[0], std::array<std::size_t, 1>({extent[0]}), ld_data, bs)
-			{
-				;
-			}
+            triangular_matrix(const std::vector<TT>& data, const std::array<std::size_t, 2>& extent, const std::size_t ld_data, const std::size_t bs = bs_default)
+                :
+                triangular_matrix(&data[0], std::array<std::size_t, 1>({extent[0]}), ld_data, bs)
+            {
+                ;
+            }
 
-			virtual ~triangular_matrix() 
-			{ 
-				compressed_data = nullptr; 
-			}
+            virtual ~triangular_matrix() 
+            { 
+                compressed_data = nullptr; 
+            }
 
-			static ptrdiff_t compress(const T* data, fp_type* compressed_data, const std::array<std::size_t, 1>& extent, const std::size_t ld_data, const std::size_t bs = bs_default, triangular_matrix* mat = nullptr)
-			{
-				if (data == nullptr || compressed_data == nullptr)
-				{
-					std::cerr << "error in triangular_matrix::compress: any of the pointers is a nullptr" << std::endl;
-					return 0;
-				}
+            static ptrdiff_t compress(const T* data, fp_type* compressed_data, const std::array<std::size_t, 1>& extent, const std::size_t ld_data, const std::size_t bs = bs_default, triangular_matrix* mat = nullptr)
+            {
+                if (data == nullptr || compressed_data == nullptr)
+                {
+                    std::cerr << "error in triangular_matrix::compress: any of the pointers is a nullptr" << std::endl;
+                    return 0;
+                }
 
-				const std::size_t n = extent[0];
+                const std::size_t n = extent[0];
                 if (n == 0)
                 {
                     return 0;
                 }
 
-				const std::size_t num_elements_a = (mat != nullptr ? mat->num_elements_a : fp<T>::template format<BE, BM>::memory_footprint_elements((bs * (bs + 1)) / 2));
-				const std::size_t num_elements_b = (mat != nullptr ? mat->num_elements_b : fp<T>::template format<BE, BM>::memory_footprint_elements(bs * bs));
-				const std::size_t num_elements_c = (mat != nullptr ? mat->num_elements_c : fp<T>::template format<BE, BM>::memory_footprint_elements(bs * (n - (n / bs) * bs)));
-				const std::size_t num_elements_d = (mat != nullptr ? mat->num_elements_d : fp<T>::template format<BE, BM>::memory_footprint_elements(((n - (n / bs) * bs) * (n - (n / bs) * bs + 1)) / 2));
-				
-				// compress the matrix block by block
+                const std::size_t num_elements_a = (mat != nullptr ? mat->num_elements_a : fp<T>::template format<BE, BM>::memory_footprint_elements((bs * (bs + 1)) / 2));
+                const std::size_t num_elements_b = (mat != nullptr ? mat->num_elements_b : fp<T>::template format<BE, BM>::memory_footprint_elements(bs * bs));
+                const std::size_t num_elements_c = (mat != nullptr ? mat->num_elements_c : fp<T>::template format<BE, BM>::memory_footprint_elements(bs * (n - (n / bs) * bs)));
+                const std::size_t num_elements_d = (mat != nullptr ? mat->num_elements_d : fp<T>::template format<BE, BM>::memory_footprint_elements(((n - (n / bs) * bs) * (n - (n / bs) * bs + 1)) / 2));
+                
+                // compress the matrix block by block
                 alignas(alignment) T buffer[bs * bs];
                 fp_type* ptr = compressed_data;
                 for (std::size_t j = 0; j < n; j += bs)
@@ -632,62 +632,62 @@ namespace FP_NAMESPACE
                         }
                     }
                 }
-				
+                
                 if (num_elements_d != 0)
                 {
                     ptr = ptr - num_elements_a + num_elements_d;
                 }
 
-				return (ptr - compressed_data);
-			}
+                return (ptr - compressed_data);
+            }
 
-			static ptrdiff_t compress(const T* data, fp_type* compressed_data, const std::array<std::size_t, 2>& extent, const std::size_t ld_data, const std::size_t bs = bs_default, triangular_matrix* mat = nullptr)
-			{
-				return compress(data, compressed_data, std::array<std::size_t, 1>({extent[0]}), ld_data, bs, mat);
-			}
+            static ptrdiff_t compress(const T* data, fp_type* compressed_data, const std::array<std::size_t, 2>& extent, const std::size_t ld_data, const std::size_t bs = bs_default, triangular_matrix* mat = nullptr)
+            {
+                return compress(data, compressed_data, std::array<std::size_t, 1>({extent[0]}), ld_data, bs, mat);
+            }
 
-			static std::size_t memory_footprint_elements(const std::array<std::size_t, 1>& extent, const std::size_t bs = bs_default)
-			{
-				const std::size_t n = extent[0];
+            static std::size_t memory_footprint_elements(const std::array<std::size_t, 1>& extent, const std::size_t bs = bs_default)
+            {
+                const std::size_t n = extent[0];
                 if (n == 0)
                 {
                     return 0;
                 }
 
-				const std::size_t num_elements_a = fp<T>::template format<BE, BM>::memory_footprint_elements((bs * (bs + 1)) / 2);
-				const std::size_t num_elements_b = fp<T>::template format<BE, BM>::memory_footprint_elements(bs * bs);
-				const std::size_t num_elements_c = fp<T>::template format<BE, BM>::memory_footprint_elements(bs * (n - (n / bs) * bs));
-				const std::size_t num_elements_d = fp<T>::template format<BE, BM>::memory_footprint_elements(((n - (n / bs) * bs) * (n - (n / bs) * bs + 1)) / 2);
+                const std::size_t num_elements_a = fp<T>::template format<BE, BM>::memory_footprint_elements((bs * (bs + 1)) / 2);
+                const std::size_t num_elements_b = fp<T>::template format<BE, BM>::memory_footprint_elements(bs * bs);
+                const std::size_t num_elements_c = fp<T>::template format<BE, BM>::memory_footprint_elements(bs * (n - (n / bs) * bs));
+                const std::size_t num_elements_d = fp<T>::template format<BE, BM>::memory_footprint_elements(((n - (n / bs) * bs) * (n - (n / bs) * bs + 1)) / 2);
 
-				const std::size_t num_blocks_a = n / bs;
-				const std::size_t num_blocks_b = (((n / bs) * ((n / bs) + 1)) / 2) - (n / bs);
-				const std::size_t num_blocks_c = (n / bs) * (((n + bs - 1) / bs) - (n / bs));
-				const std::size_t num_blocks_d = ((n + bs - 1) / bs) - (n / bs);
+                const std::size_t num_blocks_a = n / bs;
+                const std::size_t num_blocks_b = (((n / bs) * ((n / bs) + 1)) / 2) - (n / bs);
+                const std::size_t num_blocks_c = (n / bs) * (((n + bs - 1) / bs) - (n / bs));
+                const std::size_t num_blocks_d = ((n + bs - 1) / bs) - (n / bs);
 
-				return (num_blocks_a * num_elements_a + num_blocks_b * num_elements_b + num_blocks_c * num_elements_c + num_blocks_d * num_elements_d);
-			}
+                return (num_blocks_a * num_elements_a + num_blocks_b * num_elements_b + num_blocks_c * num_elements_c + num_blocks_d * num_elements_d);
+            }
 
-			static std::size_t memory_footprint_elements(const std::array<std::size_t, 2>& extent, const std::size_t bs = bs_default)
-			{
-				return memory_footprint_elements(std::array<std::size_t, 1>({extent[0]}), bs);
-			}
+            static std::size_t memory_footprint_elements(const std::array<std::size_t, 2>& extent, const std::size_t bs = bs_default)
+            {
+                return memory_footprint_elements(std::array<std::size_t, 1>({extent[0]}), bs);
+            }
 
             static std::size_t memory_footprint_bytes(const std::array<std::size_t, 1>& extent, const std::size_t bs = bs_default)
-			{
-				return memory_footprint_elements(extent, bs) * sizeof(fp_type);
-			}
+            {
+                return memory_footprint_elements(extent, bs) * sizeof(fp_type);
+            }
 
             static std::size_t memory_footprint_bytes(const std::array<std::size_t, 2>& extent, const std::size_t bs = bs_default)
-			{
-				return memory_footprint_bytes(std::array<std::size_t, 1>({extent[0]}), bs);
-			}
+            {
+                return memory_footprint_bytes(std::array<std::size_t, 1>({extent[0]}), bs);
+            }
 
             virtual std::size_t memory_footprint_elements() const
             {
                 return num_elements;
             }
 
-			virtual std::size_t memory_footprint_bytes() const
+            virtual std::size_t memory_footprint_bytes() const
             {
                 return memory_footprint_elements() * sizeof(fp_type);
             }
@@ -795,7 +795,7 @@ namespace FP_NAMESPACE
                 matrix<T, BE, BM>::blas2_frame([&](const bool transpose, const T alpha, const T* x, T* y)
                 {
                     // allocate local memory
-		            alignas(alignment) T buffer_a[bs * bs];
+                    alignas(alignment) T buffer_a[bs * bs];
 
                     // apply symmetric matrix
                     for (std::size_t j = 0, k = 0; j < n; j += bs)
@@ -971,7 +971,7 @@ namespace FP_NAMESPACE
                 solve(transpose, alpha, &x[0], &y[0]);
             }
         };
-	}
+    }
 }
 
 #endif
