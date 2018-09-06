@@ -318,7 +318,7 @@ namespace FP_NAMESPACE
                 const std::size_t n_scaling_factor = (sizeof(type) * 8 + (1 + BE + BM - 1)) / (1 + BE + BM - 1);
                 return implementation<1 + BE + BM>::memory_footprint_bytes(n_scaling_factor + n);
                 #else
-	            return implementation<1 + BE + BM>::memory_footprint_bytes(n);
+                return implementation<1 + BE + BM>::memory_footprint_bytes(n);
                 #endif
             }
 
