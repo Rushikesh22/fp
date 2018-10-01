@@ -230,9 +230,7 @@ void kernel(const real_t alpha, const real_t beta, const bool transpose,
         {
             time_start = omp_get_wtime();
         }
-        #pragma omp barrier
 
-        //time_start = omp_get_wtime();
         for (std::size_t l = 0; l < measurement; ++l)
         {
             if (use_blas)
