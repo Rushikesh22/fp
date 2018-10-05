@@ -1,14 +1,14 @@
 set terminal epslatex standalone color ', 8' header '\renewcommand{\encodingdefault}{T1}\renewcommand{\familydefault}{phv}\renewcommand{\seriesdefault}{l}\renewcommand{\shapedefault}{n}'
 set output 'blas2_n2048_all_nvram2.tex'
 
-set size nosquare 0.9, 0.95
+set size nosquare 0.9, 0.96
 set multiplot
 
 #set style fill pattern 9 border
 set style fill solid border -1
 set boxwidth 0.15
 
-set key revers Left at graph 1.23, 0.93 samplen 1.0
+set key revers Left at graph 1.5, 0.93 samplen 1.0
 
 set xrange [0.1:6.9]
 set xtics ('8'1,'16'2,'32'3,'64'4,'128'5,'256'6) offset 0.0, 0.0 scale 1.5
@@ -21,10 +21,10 @@ set size nosquare 0.475, 0.482
 set title '\textbf{gemv (n=2048)}' offset 0.0, -0.5
 set origin 0.0, 0.5
 f(x) = 016.7043
-plot f(x) with lines lt -1 title '\small IEEE fp64 (MKL reference)', \
-'./blas2_gemv_nvram2.txt' index 7 using (column(0)+0.70):8 with boxes lt -1 lc rgb '#2691cb' title '\small IEEE fp64', \
-'./blas2_gemv_nvram2.txt' index 8 using (column(0)+0.85):8 with boxes lt -1 lc rgb '#9fcdff' title '\small IEEE fp32', \
-'./blas2_gemv_nvram2.txt' index 9 using (column(0)+1.00):8 with boxes lt -1 lc rgb '#9988aa' title '\small bfloat16', \
+plot f(x) with lines lt -1 title '\small IEEE $\textsl{FP}_\textsl{\tiny 11,52}$ (MKL reference)', \
+'./blas2_gemv_nvram2.txt' index 7 using (column(0)+0.70):8 with boxes lt -1 lc rgb '#2691cb' title '\small IEEE $\textsl{FP}_\textsl{\tiny 11,52}$', \
+'./blas2_gemv_nvram2.txt' index 8 using (column(0)+0.85):8 with boxes lt -1 lc rgb '#9fcdff' title '\small IEEE $\textsl{FP}_\textsl{\tiny 8,23}$', \
+'./blas2_gemv_nvram2.txt' index 9 using (column(0)+1.00):8 with boxes lt -1 lc rgb '#9988aa' title '\small $\textsl{FP}_\textsl{\tiny 8,7}$ (bfloat16)', \
 './blas2_gemv_nvram2.txt' index 10 using (column(0)+1.15):8 with boxes lt -1 lc rgb '#699962' title '\small fixed 16 bit', \
 './blas2_gemv_nvram2.txt' index 11 using (column(0)+1.30):8 with boxes lt -1 lc rgb '#8acd67' title '\small fixed 8 bit', \
 './blas2_gemv_nvram2.txt' index 7 using (column(0)+0.70):8:9 with errorbars lt -1 notitle, \
