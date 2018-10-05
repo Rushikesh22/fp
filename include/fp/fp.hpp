@@ -9,6 +9,7 @@
 #include <cstdint>
 #include <cstring>
 #include <cmath>
+#include <immintrin.h>
 
 #if !defined(FP_NAMESPACE)
 #define FP_NAMESPACE fw 
@@ -877,7 +878,7 @@ namespace FP_NAMESPACE
 
         using out_t = typename format<0, 15>::type;
         out_t* ptr_out = reinterpret_cast<out_t*>(&fptr_out[2]);
-
+        
         #pragma omp simd
         for (std::size_t i = 0; i < n; ++i)
         {
@@ -1226,9 +1227,37 @@ namespace FP_NAMESPACE
 
         using out_t = typename format<0, 7>::type;
         out_t* ptr_out = reinterpret_cast<out_t*>(&fptr_out[2]);
+        
+        #if defined(FP_USE_INTRINSICS) && (defined(__AVX2__) || defined(__AVX512F__))
+            const std::size_t chunk_size = 32;
+            const std::size_t n_max = (n / chunk_size) * chunk_size;
+
+            for (std::size_t i = 0; i < n_max; i += chunk_size)
+            {
+                __m256 v256_in_1 = _mm256_insertf128_ps(_mm256_castps128_ps256(_mm256_cvtpd_ps(_mm256_loadu_pd(reinterpret_cast<const double*>(&in[i + 0])))),
+                                                        _mm256_cvtpd_ps(_mm256_loadu_pd(reinterpret_cast<const double*>(&in[i + 4]))), 1);
+                __m256 v256_in_2 = _mm256_insertf128_ps(_mm256_castps128_ps256(_mm256_cvtpd_ps(_mm256_loadu_pd(reinterpret_cast<const double*>(&in[i + 8])))),
+                                                        _mm256_cvtpd_ps(_mm256_loadu_pd(reinterpret_cast<const double*>(&in[i + 12]))), 1);
+                __m256 v256_in_3 = _mm256_insertf128_ps(_mm256_castps128_ps256(_mm256_cvtpd_ps(_mm256_loadu_pd(reinterpret_cast<const double*>(&in[i + 16])))),
+                                                        _mm256_cvtpd_ps(_mm256_loadu_pd(reinterpret_cast<const double*>(&in[i + 20]))), 1);
+                __m256 v256_in_4 = _mm256_insertf128_ps(_mm256_castps128_ps256(_mm256_cvtpd_ps(_mm256_loadu_pd(reinterpret_cast<const double*>(&in[i + 24])))),
+                                                        _mm256_cvtpd_ps(_mm256_loadu_pd(reinterpret_cast<const double*>(&in[i + 28]))), 1);
+
+                __m256 v256_unpacked_1 = _mm256_mul_ps(_mm256_sub_ps(v256_in_1, _mm256_set1_ps(a)), _mm256_set1_ps(b));
+                __m256 v256_unpacked_2 = _mm256_mul_ps(_mm256_sub_ps(v256_in_2, _mm256_set1_ps(a)), _mm256_set1_ps(b));
+                __m256 v256_unpacked_3 = _mm256_mul_ps(_mm256_sub_ps(v256_in_3, _mm256_set1_ps(a)), _mm256_set1_ps(b));
+                __m256 v256_unpacked_4 = _mm256_mul_ps(_mm256_sub_ps(v256_in_4, _mm256_set1_ps(a)), _mm256_set1_ps(b));
+
+                __m256i v256_packedlo = _mm256_packus_epi32(_mm256_cvtps_epi32(v256_unpacked_1), _mm256_cvtps_epi32(v256_unpacked_2));
+                __m256i v256_packedhi = _mm256_packus_epi32(_mm256_cvtps_epi32(v256_unpacked_3), _mm256_cvtps_epi32(v256_unpacked_4));
+                _mm256_storeu_si256(reinterpret_cast<__m256i*>(&ptr_out[i]), _mm256_packus_epi16(v256_packedlo, v256_packedhi));
+            }
+        #else
+            const std::size_t n_max = 0;
+        #endif
 
         #pragma omp simd
-        for (std::size_t i = 0; i < n; ++i)
+        for (std::size_t i = n_max; i < n; ++i)
         {
             ptr_out[i] = (static_cast<float>(in[i]) - a) * b;
         }
@@ -1249,9 +1278,37 @@ namespace FP_NAMESPACE
 
         using in_t = typename format<0, 7>::type;
         const in_t* ptr_in = reinterpret_cast<const in_t*>(&fptr_in[2]);
-        
+
+        #if defined(FP_USE_INTRINSICS) && (defined(__AVX2__) || defined(__AVX512F__))
+            const std::size_t chunk_size = 32;
+            const std::size_t n_max = (n / chunk_size) * chunk_size;
+
+            for (std::size_t i = 0; i < n_max; i += chunk_size)
+            {
+                __m256i v256_packed = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(&ptr_in[i]));
+                __m256i v256_unpacked_lo = _mm256_unpacklo_epi8(v256_packed, _mm256_setzero_si256());
+                __m256i v256_unpacked_hi = _mm256_unpackhi_epi8(v256_packed, _mm256_setzero_si256());
+                
+                __m256i v256_unpacked[4];
+                v256_unpacked[0] = _mm256_unpacklo_epi16(v256_unpacked_lo, _mm256_setzero_si256());
+                v256_unpacked[1] = _mm256_unpackhi_epi16(v256_unpacked_lo, _mm256_setzero_si256());
+                v256_unpacked[2] = _mm256_unpacklo_epi16(v256_unpacked_hi, _mm256_setzero_si256());
+                v256_unpacked[3] = _mm256_unpackhi_epi16(v256_unpacked_hi, _mm256_setzero_si256());
+                
+                for (std::size_t ii = 0; ii < 4; ++ii)
+                {
+                    __m256d tmp_1 = _mm256_fmadd_pd(_mm256_cvtepi32_pd(_mm256_extracti128_si256(v256_unpacked[ii], 0)), _mm256_set1_pd(b), _mm256_set1_pd(a));
+                    __m256d tmp_2 = _mm256_fmadd_pd(_mm256_cvtepi32_pd(_mm256_extracti128_si256(v256_unpacked[ii], 1)), _mm256_set1_pd(b), _mm256_set1_pd(a));
+                    _mm256_storeu_pd(reinterpret_cast<double*>(&out[i + ii * 8 + 0]), tmp_1);
+                    _mm256_storeu_pd(reinterpret_cast<double*>(&out[i + ii * 8 + 4]), tmp_2);
+                }
+            }
+        #else
+            const std::size_t n_max = 0;
+        #endif
+
         #pragma omp simd
-        for (std::size_t i = 0; i < n; ++i)
+        for (std::size_t i = n_max; i < n; ++i)
         {
             const float tmp = ptr_in[i];
             out[i] = tmp * b + a;
@@ -1304,8 +1361,32 @@ namespace FP_NAMESPACE
         using out_t = typename format<0, 7>::type;
         out_t* ptr_out = reinterpret_cast<out_t*>(&fptr_out[2]);
 
+        #if defined(FP_USE_INTRINSICS) && defined(__AVX2__)
+            const std::size_t chunk_size = 32;
+            const std::size_t n_max = (n / chunk_size) * chunk_size;
+
+            for (std::size_t i = 0; i < n_max; i += chunk_size)
+            {
+                __m256 v256_in_1 = _mm256_loadu_ps(reinterpret_cast<const float*>(&in[i + 0]));
+                __m256 v256_in_2 = _mm256_loadu_ps(reinterpret_cast<const float*>(&in[i + 8]));
+                __m256 v256_in_3 = _mm256_loadu_ps(reinterpret_cast<const float*>(&in[i + 16]));
+                __m256 v256_in_4 = _mm256_loadu_ps(reinterpret_cast<const float*>(&in[i + 24]));
+
+                __m256 v256_unpacked_1 = _mm256_mul_ps(_mm256_sub_ps(v256_in_1, _mm256_set1_ps(a)), _mm256_set1_ps(b));
+                __m256 v256_unpacked_2 = _mm256_mul_ps(_mm256_sub_ps(v256_in_2, _mm256_set1_ps(a)), _mm256_set1_ps(b));
+                __m256 v256_unpacked_3 = _mm256_mul_ps(_mm256_sub_ps(v256_in_3, _mm256_set1_ps(a)), _mm256_set1_ps(b));
+                __m256 v256_unpacked_4 = _mm256_mul_ps(_mm256_sub_ps(v256_in_4, _mm256_set1_ps(a)), _mm256_set1_ps(b));
+
+                __m256i v256_packedlo = _mm256_packus_epi32(_mm256_cvtps_epi32(v256_unpacked_1), _mm256_cvtps_epi32(v256_unpacked_2));
+                __m256i v256_packedhi = _mm256_packus_epi32(_mm256_cvtps_epi32(v256_unpacked_3), _mm256_cvtps_epi32(v256_unpacked_4));
+                _mm256_storeu_si256(reinterpret_cast<__m256i*>(&ptr_out[i]), _mm256_packus_epi16(v256_packedlo, v256_packedhi));
+            }
+        #else
+            const std::size_t n_max = 0;
+        #endif
+
         #pragma omp simd
-        for (std::size_t i = 0; i < n; ++i)
+        for (std::size_t i = n_max; i < n; ++i)
         {
             ptr_out[i] = (in[i] - a) * b;
         }
@@ -1327,8 +1408,34 @@ namespace FP_NAMESPACE
         using in_t = typename format<0, 7>::type;
         const in_t* ptr_in = reinterpret_cast<const in_t*>(&fptr_in[2]);
         
+        #if defined(FP_USE_INTRINSICS) && defined(__AVX2__)
+            const std::size_t chunk_size = 32;
+            const std::size_t n_max = (n / chunk_size) * chunk_size;
+
+            for (std::size_t i = 0; i < n_max; i += chunk_size)
+            {
+                __m256i v256_packed = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(&ptr_in[i]));
+                __m256i v256_unpacked_lo = _mm256_unpacklo_epi8(v256_packed, _mm256_setzero_si256());
+                __m256i v256_unpacked_hi = _mm256_unpackhi_epi8(v256_packed, _mm256_setzero_si256());
+                
+                __m256i v256_unpacked[4];
+                v256_unpacked[0] = _mm256_unpacklo_epi16(v256_unpacked_lo, _mm256_setzero_si256());
+                v256_unpacked[1] = _mm256_unpackhi_epi16(v256_unpacked_lo, _mm256_setzero_si256());
+                v256_unpacked[2] = _mm256_unpacklo_epi16(v256_unpacked_hi, _mm256_setzero_si256());
+                v256_unpacked[3] = _mm256_unpackhi_epi16(v256_unpacked_hi, _mm256_setzero_si256());
+                
+                for (std::size_t ii = 0; ii < 4; ++ii)
+                {
+                    __m256 tmp_1 = _mm256_fmadd_ps(_mm256_cvtepi32_ps(v256_unpacked[ii]), _mm256_set1_ps(b), _mm256_set1_ps(a));
+                    _mm256_storeu_ps(reinterpret_cast<float*>(&out[i + ii * 8]), tmp_1);
+                }
+            }
+        #else
+            const std::size_t n_max = 0;
+        #endif
+
         #pragma omp simd
-        for (std::size_t i = 0; i < n; ++i)
+        for (std::size_t i = n_max; i < n; ++i)
         {
             const float tmp = ptr_in[i];
             out[i] = tmp * b + a;

@@ -12,6 +12,7 @@
 #include <vector>
 #include <array>
 #include <cblas.h>
+#include <omp.h>
 
 #include <fp/fp.hpp>
 #include <blas/wrapper.hpp>
@@ -220,7 +221,7 @@ namespace FP_NAMESPACE
     public:
 
             // (default) block size
-            static constexpr std::size_t bs_default = 64;
+            static constexpr std::size_t bs_default = 32;
 
             // constructor
             matrix() = delete;
@@ -274,14 +275,14 @@ namespace FP_NAMESPACE
 
             virtual ~matrix()
             { 
-                compressed_data = nullptr; 
+		        ;
             }
-            
+   
             static ptrdiff_t compress(const T* data, fp_type* compressed_data, const std::array<std::size_t, 2>& extent, const std::size_t ld_data, const std::size_t bs = bs_default, matrix* mat = nullptr)
             {
                 if (data == nullptr || compressed_data == nullptr)
                 {
-                    std::cerr << "error in matrix::compress: any of the pointers is a nullptr" << std::endl;
+                    std::cerr << "error in matrix<..," << BE << "," << BM << ">::compress: any of the pointers is a nullptr" << std::endl;
                     return 0;
                 }
 
@@ -401,7 +402,7 @@ namespace FP_NAMESPACE
 
                             // apply general blas matrix vector multiplication
                             gemv(CblasRowMajor, (transpose ? CblasTrans : CblasNoTrans), mm, nn, alpha, &buffer_a[0], nn, (transpose ? &x[j] : &x[i]), 1, f_1, (transpose ? &y[i] : &y[j]), 1);
-                            
+
                             // move on to the next block
                             k += ((n - i) < bs ? num_elements_b : k_inc);
                         }
@@ -564,7 +565,7 @@ namespace FP_NAMESPACE
             {
                 if (data == nullptr || compressed_data == nullptr)
                 {
-                    std::cerr << "error in triangular_matrix::compress: any of the pointers is a nullptr" << std::endl;
+                    std::cerr << "error in triangular_matrix<..," << BE << "," << BM << ">::compress: any of the pointers is a nullptr" << std::endl;
                     return 0;
                 }
 

@@ -49,6 +49,7 @@ int main(int argc, char** argv)
 
     std::cout << "matrix multiply: " << m << " x " << n << std::endl;
     std::cout << "num matrices: " << num_matrices << std::endl;
+    std::cout << "block size: " << bs << std::endl;
 
     #if defined(THREAD_PINNING)
     #pragma omp parallel
@@ -98,7 +99,7 @@ int main(int argc, char** argv)
     // parameters for the matrix vector multiplication
     const real_t alpha = static_cast<real_t>(1.0);
     const real_t beta = static_cast<real_t>(0.0);
-    const bool transpose = true;
+    const bool transpose = false;
     kernel(alpha, beta, transpose, m, n, a, a_compressed, x, y_ref, y, use_blas);
     #else
     {
@@ -168,6 +169,10 @@ int main(int argc, char** argv)
         }
     }
     #endif
+
+#if defined(PROFILING)
+    a_compressed[0].print_profile();    
+#endif
     
     return 0;
 }

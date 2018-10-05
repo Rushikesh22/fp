@@ -47,6 +47,7 @@ int main(int argc, char** argv)
 
     std::cout << "triangular matrix solve: " << n << " x " << n << " (" << (upper_matrix ? "upper)" : "lower)") << std::endl;
     std::cout << "num matrices: " << num_matrices << std::endl;
+    std::cout << "block size: " << bs << std::endl;
 
 #if defined(THREAD_PINNING)
     #pragma omp parallel
@@ -116,7 +117,7 @@ int main(int argc, char** argv)
     #if defined(BENCHMARK)
     // parameters for the matrix vector multiplication
     const real_t alpha = static_cast<real_t>(1.0);
-    const bool transpose = true;
+    const bool transpose = false;
     kernel(alpha, transpose, n, a, a_compressed, x_ref, x, y, use_blas);
     #else
     {
@@ -246,7 +247,9 @@ void kernel(const real_t alpha, const bool transpose,
         {
             time_start = omp_get_wtime();
         }
+        #pragma omp barrier
 
+        //time_start = omp_get_wtime();
         for (std::size_t l = 0; l < measurement; ++l)
         {
             if (use_blas)
