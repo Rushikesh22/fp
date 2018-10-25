@@ -385,7 +385,8 @@ namespace FP_NAMESPACE
                 blas2_frame([&](const bool transpose, const T alpha, const T* x, T* y)
                 { 
                     // allocate local memory
-                    alignas(alignment) T buffer_a[bs * bs];
+                    //alignas(alignment) T buffer_a[bs * bs];
+                    T buffer_a[bs * bs] __attribute__((aligned(alignment)));
 
                     // apply matrix to 'x' and add the result to 'y'
                     for (std::size_t j = 0, k = 0; j < m; j += bs)

@@ -3,11 +3,15 @@
 // Distributed under the BSD 2-clause Software License
 // (See accompanying file LICENSE)
 
-#if !defined(BLAS_WRAPPER_HPP)
-#define BLAS_WRAPPER_HPP
+#if !defined(WRAPPER_HPP)
+#define WRAPPER_HPP
 
 #include <cstdint>
 #include <cblas.h>
+
+#if defined(FP_USE_LIBXSMM)
+#include <libxsmm.h>
+#endif
 
 #if !defined(FP_NAMESPACE)
 #define FP_NAMESPACE fw
@@ -17,6 +21,87 @@ namespace FP_NAMESPACE
 {
     namespace blas
     {
+        // BLAS call wrapper: matrix matrix multiply
+        template <typename T>
+        static void gemm(const CBLAS_LAYOUT __Order, const CBLAS_TRANSPOSE __TransA, const CBLAS_TRANSPOSE __TransB,
+            const std::size_t __M, const std::size_t __N, const std::size_t __K, const T __alpha, const T* __A, const std::size_t __lda,
+            const T* __B, const std::size_t __ldb,
+            const T __beta, T* __C, const std::size_t __ldc);
+        
+        template <>
+        void gemm<double>(const CBLAS_LAYOUT __Order, const CBLAS_TRANSPOSE __TransA, const CBLAS_TRANSPOSE __TransB,
+            const std::size_t __M, const std::size_t __N, const std::size_t __K, const double __alpha, const double* __A, const std::size_t __lda, 
+            const double* __B, const std::size_t __ldb, 
+            const double __beta, double* __C, const std::size_t __ldc) 
+        {
+            #if defined(FP_USE_LIBXSMM)
+            const char transA = (__TransA == CblasTrans ? 'T' : 'N');
+            const char transB = (__TransB == CblasTrans ? 'T' : 'N');
+            const libxsmm_blasint m = __M;
+            const libxsmm_blasint n = __N;
+            const libxsmm_blasint k = __K;
+            const libxsmm_blasint lda = __lda;
+            const libxsmm_blasint ldb = __ldb;
+            const libxsmm_blasint ldc = __ldc;
+            const double alpha = __alpha;
+            const double beta = __beta;
+
+            if ((__Order == CblasRowMajor) && (transA == 'N' && transB == 'N'))
+            {
+                // libxsmm uses column major format per-default: A <-> B, n <-> m
+                libxsmm_dgemm(&transA, &transB, &n, &m, &k, &alpha, __B, &ldb, __A, &lda, &beta, __C, &ldc);
+            }
+            else if (__Order == CblasColMajor)
+            {
+                libxsmm_dgemm(&transA, &transB, &m, &n, &k, &alpha, __A, &lda, __B, &ldb, &beta, __C, &ldc);
+            }
+            else
+            {
+                cblas_dgemm(__Order, __TransA, __TransB, __M, __N, __K, __alpha, __A, __lda, __B, __ldb, __beta, __C, __ldc);    
+            }
+            #else
+            cblas_dgemm(__Order, __TransA, __TransB, __M, __N, __K, __alpha, __A, __lda, __B, __ldb, __beta, __C, __ldc);
+            #endif
+        }
+
+        template <>
+        void gemm<float>(const CBLAS_LAYOUT __Order, const CBLAS_TRANSPOSE __TransA, const CBLAS_TRANSPOSE __TransB,
+            const std::size_t __M, const std::size_t __N, const std::size_t __K, const float __alpha, const float* __A, const std::size_t __lda, 
+            const float* __B, const std::size_t __ldb, 
+            const float __beta, float* __C, const std::size_t __ldc) 
+        {
+            #if defined(FP_USE_LIBXSMM)
+            const char transpose = 'T';
+            const char notranspose = 'N';
+            const char transA = (__TransA == CblasTrans ? 'T' : 'N');
+            const char transB = (__TransB == CblasTrans ? 'T' : 'N');
+            const libxsmm_blasint m = __M;
+            const libxsmm_blasint n = __N;
+            const libxsmm_blasint k = __K;
+            const libxsmm_blasint lda = __lda;
+            const libxsmm_blasint ldb = __ldb;
+            const libxsmm_blasint ldc = __ldc;
+            const float alpha = __alpha;
+            const float beta = __beta;
+
+            if ((__Order == CblasRowMajor) && (transA == 'N' && transB == 'N'))
+            {
+                // libxsmm uses column major format per-default: A <-> B, n <-> m
+                libxsmm_sgemm(&transA, &transB, &n, &m, &k, &alpha, __B, &ldb, __A, &lda, &beta, __C, &ldc);
+            }
+            else if (__Order == CblasColMajor)
+            {
+                libxsmm_sgemm(&transA, &transB, &m, &n, &k, &alpha, __A, &lda, __B, &ldb, &beta, __C, &ldc);
+            }
+            else
+            {
+                cblas_sgemm(__Order, __TransA, __TransB, __M, __N, __K, __alpha, __A, __lda, __B, __ldb, __beta, __C, __ldc);    
+            }
+            #else
+            cblas_sgemm(__Order, __TransA, __TransB, __M, __N, __K, __alpha, __A, __lda, __B, __ldb, __beta, __C, __ldc);
+            #endif
+        }
+
         // BLAS call wrapper: matrix vector multiply
         template <typename T>
         static void gemv(const CBLAS_LAYOUT __Order, const CBLAS_TRANSPOSE __TransA, 
@@ -30,7 +115,11 @@ namespace FP_NAMESPACE
             const double* __X, const std::size_t __incX, 
             const double __beta, double* __Y, const std::size_t __incY) 
         {
+            #if defined(FP_GEMV_TO_GEMM)
+            gemm(__Order, __TransA, CblasNoTrans, __M, __incX, __N, __alpha, __A, __N, __X, __incX, __beta, __Y, __incY);
+            #else
             cblas_dgemv(__Order, __TransA, __M, __N, __alpha, __A, __lda, __X, __incX, __beta, __Y, __incY);
+            #endif
         }
 
         template <>
@@ -39,7 +128,11 @@ namespace FP_NAMESPACE
             const float* __X, const std::size_t __incX, 
             const float __beta, float* __Y, const std::size_t __incY) 
         {
+            #if defined(FP_GEMV_TO_GEMM)
+            gemm(__Order, __TransA, CblasNoTrans, __M, __incX, __N, __alpha, __A, __N, __X, __incX, __beta, __Y, __incY);
+            #else
             cblas_sgemv(__Order, __TransA, __M, __N, __alpha, __A, __lda, __X, __incX, __beta, __Y, __incY);
+            #endif
         }
 
         // BLAS call wrapper: triangular packed matrix vector multiply
