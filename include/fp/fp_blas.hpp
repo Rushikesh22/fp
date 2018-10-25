@@ -277,7 +277,7 @@ namespace FP_NAMESPACE
 
             virtual ~matrix()
             { 
-		        compressed_data = nullptr;
+                compressed_data = nullptr;
             }
    
             static ptrdiff_t compress(const T* data, fp_type* compressed_data, const std::array<std::size_t, 2>& extent, const std::size_t ld_data, const std::size_t bs = bs_default, matrix* mat = nullptr)
