@@ -116,10 +116,13 @@ namespace FP_NAMESPACE
             const double __beta, double* __Y, const std::size_t __incY) 
         {
             #if defined(FP_GEMV_TO_GEMM)
-            gemm(__Order, __TransA, CblasNoTrans, __M, __incX, __N, __alpha, __A, __N, __X, __incX, __beta, __Y, __incY);
-            #else
-            cblas_dgemv(__Order, __TransA, __M, __N, __alpha, __A, __lda, __X, __incX, __beta, __Y, __incY);
+            if (__M == __N)
+            {
+                gemm(__Order, __TransA, CblasNoTrans, __M, __incX, __N, __alpha, __A, __N, __X, __incX, __beta, __Y, __incY);
+            }
+            else
             #endif
+            cblas_dgemv(__Order, __TransA, __M, __N, __alpha, __A, __lda, __X, __incX, __beta, __Y, __incY);
         }
 
         template <>
@@ -129,10 +132,13 @@ namespace FP_NAMESPACE
             const float __beta, float* __Y, const std::size_t __incY) 
         {
             #if defined(FP_GEMV_TO_GEMM)
-            gemm(__Order, __TransA, CblasNoTrans, __M, __incX, __N, __alpha, __A, __N, __X, __incX, __beta, __Y, __incY);
-            #else
-            cblas_sgemv(__Order, __TransA, __M, __N, __alpha, __A, __lda, __X, __incX, __beta, __Y, __incY);
+            if (__M == __N)
+            {
+                gemm(__Order, __TransA, CblasNoTrans, __M, __incX, __N, __alpha, __A, __N, __X, __incX, __beta, __Y, __incY);
+            }
+            else
             #endif
+            cblas_sgemv(__Order, __TransA, __M, __N, __alpha, __A, __lda, __X, __incX, __beta, __Y, __incY);
         }
 
         // BLAS call wrapper: triangular packed matrix vector multiply
