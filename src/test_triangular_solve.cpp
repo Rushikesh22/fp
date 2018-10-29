@@ -76,22 +76,22 @@ int main(int argc, char** argv)
             {
                 for (std::size_t i = 0; i < j; ++i)
                 {
-                    a[k][j * n + i] = 0.0;
+                    a[k][fw::blas::idx<L>(j, i, n, n)] = 0.0;
                 }
                 for (std::size_t i = j; i < n; ++i)
                 {
-                    a[k][j * n + i] = 0.95 + 0.1 * drand48();
+                    a[k][fw::blas::idx<L>(j, i, n, n)] = 0.95 + 0.1 * drand48();
                 }
             }
             else
             {
                 for (std::size_t i = 0; i <= j; ++i)
                 {
-                    a[k][j * n + i] = 0.95 + 0.1 * drand48();
+                    a[k][fw::blas::idx<L>(j, i, n, n)] = 0.95 + 0.1 * drand48();
                 }
                 for (std::size_t i = (j + 1); i < n; ++i)
                 {
-                    a[k][j * n + i] = 0.0;
+                    a[k][fw::blas::idx<L>(j, i, n, n)] = 0.0;
                 }
             }
         }
@@ -176,7 +176,7 @@ void kernel(const real_t alpha, const bool transpose,
     // reference computation
     for (std::size_t k = 0; k < a.size(); ++k)
     {
-        fw::blas::gemv(CblasRowMajor, (transpose ? CblasTrans : CblasNoTrans), n, n, alpha, &a[k][0], n, &x_ref[k][0], 1, static_cast<real_t>(0.0), &y[k][0], 1);
+        fw::blas::gemv(layout, (transpose ? CblasTrans : CblasNoTrans), n, n, alpha, &a[k][0], n, &x_ref[k][0], 1, static_cast<real_t>(0.0), &y[k][0], 1);
     }
 
     if (use_blas)
@@ -198,7 +198,9 @@ void kernel(const real_t alpha, const bool transpose,
         {
             for (std::size_t j = 0, l = 0; j < n; ++j)
             {
-                for (std::size_t i = j; i < n; ++i, ++l)
+                const std::size_t i_start = (L == fw::blas::matrix_layout::rowmajor ? j : 0);
+                const std::size_t i_end = (L == fw::blas::matrix_layout::rowmajor ? n : (j + 1));
+                for (std::size_t i = i_start; i < i_end; ++i, ++l)
                 {
                     a_packed[k][l] = a[k][j * n + i];
                 }
@@ -208,7 +210,9 @@ void kernel(const real_t alpha, const bool transpose,
         {
             for (std::size_t j = 0, l = 0; j < n; ++j)
             {
-                for (std::size_t i = 0; i <= j; ++i, ++l)
+                const std::size_t i_start = (L == fw::blas::matrix_layout::rowmajor ? 0 : j);
+                const std::size_t i_end = (L == fw::blas::matrix_layout::rowmajor ? (j + 1) : n);
+                for (std::size_t i = i_start; i < i_end; ++i, ++l)
                 {
                     a_packed[k][l] = a[k][j * n + i];
                 }

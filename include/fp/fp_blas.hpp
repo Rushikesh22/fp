@@ -32,6 +32,25 @@ namespace FP_NAMESPACE
         constexpr std::size_t alignment = 32;
         #endif
 
+        //! matrix format: colmajor, rowmajor
+        enum class matrix_layout { colmajor = 0, rowmajor = 1 };
+
+        // index computation
+        template <matrix_layout L>
+        inline std::size_t idx(const std::size_t j, const std::size_t i, const std::size_t m, const std::size_t n);
+
+        template <>
+        inline std::size_t idx<matrix_layout::rowmajor>(const std::size_t j, const std::size_t i, const std::size_t m, const std::size_t n)
+        {
+            return (j * n + i);
+        }
+
+        template <>
+        inline std::size_t idx<matrix_layout::colmajor>(const std::size_t j, const std::size_t i, const std::size_t m, const std::size_t n)
+        {
+            return (i * m + j);
+        }
+
         //! matrix types: lower, upper
         enum class triangular_matrix_type { lower = 0, upper = 1 };
 
@@ -40,7 +59,7 @@ namespace FP_NAMESPACE
         //! \tparam T data type (of the matrix elements)
         //! \tparam BE number of bits in the exponent
         //! \tparam BM number of bits in the mantissa
-        template <typename T, std::uint32_t BE = fp<T>::default_bits_exponent(), std::uint32_t BM = fp<T>::default_bits_mantissa()>
+        template <typename T, matrix_layout L = matrix_layout::rowmajor, std::uint32_t BE = fp<T>::default_bits_exponent(), std::uint32_t BM = fp<T>::default_bits_mantissa()>
         class matrix
         {
             static_assert(std::is_same<T, double>::value || std::is_same<T, float>::value, "error: only 'double' and 'float' type is supported");
@@ -54,6 +73,10 @@ namespace FP_NAMESPACE
             // fp type for data compression
             using fp_type = typename FP_NAMESPACE::fp<T>::template format<BE, BM>::type;
             using fp_remapped_type = typename FP_NAMESPACE::internal::fp_remap<T, BE, BM>::type;
+
+        private:
+
+            static constexpr CBLAS_LAYOUT cblas_layout = (L == matrix_layout::rowmajor ? CblasRowMajor : CblasColMajor);
 
         protected:
 
@@ -317,8 +340,8 @@ namespace FP_NAMESPACE
                             #pragma omp simd
                             for (std::size_t ii = 0; ii < nn; ++ii)
                             {
-                                buffer[jj * nn + ii] = data[(j + jj) * ld_data + (i + ii)];
-                            }
+                                buffer[idx<L>(jj, ii, mm, nn)] = data[idx<L>(j + jj, i + ii, ld_data, ld_data)];
+                            }  
                         }
 
                         // compress the 'buffer'
@@ -387,8 +410,7 @@ namespace FP_NAMESPACE
                 blas2_frame([&](const bool transpose, const T alpha, const T* x, T* y)
                 { 
                     // allocate local memory
-                    //alignas(alignment) T buffer_a[bs * bs];
-                    T buffer_a[bs * bs] __attribute__((aligned(alignment)));
+                    alignas(alignment) T buffer_a[bs * bs];
 
                     // apply matrix to 'x' and add the result to 'y'
                     for (std::size_t j = 0, k = 0; j < m; j += bs)
@@ -404,7 +426,10 @@ namespace FP_NAMESPACE
                             fp<T>::template decompress<BE, BM>(&buffer_a[0], &compressed_data[k], mm * nn);
 
                             // apply general blas matrix vector multiplication
-                            gemv(CblasRowMajor, (transpose ? CblasTrans : CblasNoTrans), mm, nn, alpha, &buffer_a[0], nn, (transpose ? &x[j] : &x[i]), 1, f_1, (transpose ? &y[i] : &y[j]), 1);
+                            const std::size_t lda = (L == matrix_layout::rowmajor ? nn : mm);
+                            const std::size_t src_idx = (transpose ? j : i);
+                            const std::size_t dst_idx = (transpose ? i : j);
+                            gemv(cblas_layout, (transpose ? CblasTrans : CblasNoTrans), mm, nn, alpha, &buffer_a[0], lda, &x[src_idx], 1, f_1, &y[dst_idx], 1);
 
                             // move on to the next block
                             k += ((n - i) < bs ? num_elements_b : k_inc);
@@ -434,15 +459,15 @@ namespace FP_NAMESPACE
         //! \tparam T data type (of the matrix elements)
         //! \tparam BE number of bits in the exponent
         //! \tparam BM number of bits in the mantissa
-        template <typename T, triangular_matrix_type MT = triangular_matrix_type::upper, std::uint32_t BE = fp<T>::default_bits_exponent(), std::uint32_t BM = fp<T>::default_bits_mantissa()>
-        class triangular_matrix : public matrix<T, BE, BM>
+        template <typename T, matrix_layout L = matrix_layout::rowmajor, triangular_matrix_type MT = triangular_matrix_type::upper, std::uint32_t BE = fp<T>::default_bits_exponent(), std::uint32_t BM = fp<T>::default_bits_mantissa()>
+        class triangular_matrix : public matrix<T, L, BE, BM>
         {
             static_assert(std::is_same<T, double>::value || std::is_same<T, float>::value, "error: only 'double' and 'float' type is supported");
 
         public:
 
             // extent of the matrix
-            using matrix<T, BE, BM>::n;
+            using matrix<T, L, BE, BM>::n;
 
             // fp type for data compression
             using fp_type = typename fp<T>::template format<BE, BM>::type;
@@ -451,25 +476,28 @@ namespace FP_NAMESPACE
         private:
 
             // block size
-            using matrix<T, BE, BM>::bs;
+            using matrix<T, L, BE, BM>::bs;
+
+            // matrix format
+            static constexpr CBLAS_LAYOUT cblas_layout = (L == matrix_layout::rowmajor ? CblasRowMajor : CblasColMajor);
 
             // compresse matrix
-            using matrix<T, BE, BM>::memory;
-            using matrix<T, BE, BM>::compressed_data;
+            using matrix<T, L, BE, BM>::memory;
+            using matrix<T, L, BE, BM>::compressed_data;
 
-            using matrix<T, BE, BM>::num_blocks_a;
-            using matrix<T, BE, BM>::num_elements_a;
+            using matrix<T, L, BE, BM>::num_blocks_a;
+            using matrix<T, L, BE, BM>::num_elements_a;
 
-            using matrix<T, BE, BM>::num_blocks_b;
-            using matrix<T, BE, BM>::num_elements_b;
+            using matrix<T, L, BE, BM>::num_blocks_b;
+            using matrix<T, L, BE, BM>::num_elements_b;
 
-            using matrix<T, BE, BM>::num_blocks_c;
-            using matrix<T, BE, BM>::num_elements_c;
+            using matrix<T, L, BE, BM>::num_blocks_c;
+            using matrix<T, L, BE, BM>::num_elements_c;
 
-            using matrix<T, BE, BM>::num_blocks_d;
-            using matrix<T, BE, BM>::num_elements_d;
+            using matrix<T, L, BE, BM>::num_blocks_d;
+            using matrix<T, L, BE, BM>::num_elements_d;
 
-            using matrix<T, BE, BM>::num_elements;
+            using matrix<T, L, BE, BM>::num_elements;
 
             // some constants
             static constexpr T f_0 = static_cast<T>(0.0);
@@ -507,7 +535,7 @@ namespace FP_NAMESPACE
         public:
 
             // (default) block size
-            static constexpr std::size_t bs_default = matrix<T, BE, BM>::bs_default;
+            static constexpr std::size_t bs_default = matrix<T, L, BE, BM>::bs_default;
 
             // constructor
             triangular_matrix() = delete;
@@ -515,7 +543,7 @@ namespace FP_NAMESPACE
             template <typename TT>
             triangular_matrix(const TT* data, const std::array<std::size_t, 1>& extent, const std::size_t ld_data, const std::size_t bs = bs_default)
                 :
-                matrix<T, BE, BM>(data, extent, ld_data, MT, bs)
+                matrix<T, L, BE, BM>(data, extent, ld_data, MT, bs)
             {
                 if (std::is_same<TT, fp_type>::value)
                 {
@@ -586,13 +614,16 @@ namespace FP_NAMESPACE
                 const std::size_t num_elements_d = (mat != nullptr ? mat->num_elements_d : fp<T>::template format<BE, BM>::memory_footprint_elements(((n - (n / bs) * bs) * (n - (n / bs) * bs + 1)) / 2));
                 
                 // compress the matrix block by block
+                constexpr bool upper_rowmajor = (MT == triangular_matrix_type::upper) && (L == matrix_layout::rowmajor);
+                constexpr bool lower_colmajor = (MT == triangular_matrix_type::lower) && (L == matrix_layout::colmajor);
+
                 alignas(alignment) T buffer[bs * bs];
                 fp_type* ptr = compressed_data;
                 for (std::size_t j = 0; j < n; j += bs)
                 {
                     const std::size_t i_start = (MT == triangular_matrix_type::upper ? j : 0);
                     const std::size_t i_end = (MT == triangular_matrix_type::upper ? n : (j + 1));
-
+                    
                     for (std::size_t i = i_start; i < i_end; i += bs)
                     {
                         const std::size_t mm = std::min(n - j, bs);
@@ -604,8 +635,8 @@ namespace FP_NAMESPACE
                             // diagonal blocks
                             if (i == j)
                             {
-                                const std::size_t ii_start = (MT == triangular_matrix_type::upper ? jj : 0);
-                                const std::size_t ii_end = (MT == triangular_matrix_type::upper ? nn : (jj + 1));
+                                const std::size_t ii_start = (upper_rowmajor || lower_colmajor ? jj : 0);
+                                const std::size_t ii_end = (upper_rowmajor || lower_colmajor ? nn : (jj + 1));
 
                                 for (std::size_t ii = ii_start; ii < ii_end; ++ii, ++kk)
                                 {
@@ -618,7 +649,7 @@ namespace FP_NAMESPACE
                                 #pragma omp simd
                                 for (std::size_t ii = 0; ii < nn; ++ii)
                                 {
-                                    buffer[jj * nn + ii] = data[(j + jj) * ld_data + (i + ii)];
+                                    buffer[idx<L>(jj, ii, mm, nn)] = data[idx<L>(j + jj, i + ii, ld_data, ld_data)];
                                 }
                             }
                         }    
@@ -705,7 +736,7 @@ namespace FP_NAMESPACE
                     return;
                 }
 
-                matrix<T, BE, BM>::blas2_frame([&](const bool transpose, const T alpha, const T* x, T* y)
+                matrix<T, L, BE, BM>::blas2_frame([&](const bool transpose, const T alpha, const T* x, T* y)
                 { 
                     // allocate local memory
                     alignas(alignment) T buffer_a[bs * bs];
@@ -734,7 +765,7 @@ namespace FP_NAMESPACE
                                 }
 
                                 // apply triangular matrix vector multiply
-                                tpmv(CblasRowMajor, (MT == triangular_matrix_type::upper ? CblasUpper : CblasLower), (transpose ? CblasTrans : CblasNoTrans), CblasNonUnit, nn, &buffer_a[0], &buffer_y[0], 1);
+                                tpmv(cblas_layout, (MT == triangular_matrix_type::upper ? CblasUpper : CblasLower), (transpose ? CblasTrans : CblasNoTrans), CblasNonUnit, nn, &buffer_a[0], &buffer_y[0], 1);
 
                                 // scale by 'alpha'
                                 for (std::size_t jj = 0; jj < nn; ++jj)
@@ -776,7 +807,10 @@ namespace FP_NAMESPACE
                                 fp<T>::template decompress<BE, BM>(&buffer_a[0], &compressed_data[k], mm * nn);
 
                                 // apply blas matrix vector multiplication
-                                gemv(CblasRowMajor, (transpose ? CblasTrans : CblasNoTrans), mm, nn, alpha, &buffer_a[0], nn, (transpose ? &x[j] : &x[i]), 1, f_1, (transpose ? &y[i] : &y[j]), 1);
+                                const std::size_t lda = (L == matrix_layout::rowmajor ? nn : mm);
+                                const std::size_t src_idx = (transpose ? j : i);
+                                const std::size_t dst_idx = (transpose ? i : j);
+                                gemv(cblas_layout, (transpose ? CblasTrans : CblasNoTrans), mm, nn, alpha, &buffer_a[0], lda, &x[src_idx], 1, f_1, &y[dst_idx], 1);
 
                                 const std::size_t ij = (MT == triangular_matrix_type::upper ? i : j);
                                 k += ((n - ij) < bs ? num_elements_c : num_elements_b);
@@ -798,7 +832,7 @@ namespace FP_NAMESPACE
                     return;
                 }
 
-                matrix<T, BE, BM>::blas2_frame([&](const bool transpose, const T alpha, const T* x, T* y)
+                matrix<T, L, BE, BM>::blas2_frame([&](const bool transpose, const T alpha, const T* x, T* y)
                 {
                     // allocate local memory
                     alignas(alignment) T buffer_a[bs * bs];
@@ -821,7 +855,7 @@ namespace FP_NAMESPACE
                                 fp<T>::template decompress<BE, BM>(&buffer_a[0], &compressed_data[k], (nn * (nn + 1)) / 2);
 
                                 // apply symmetric matrix vector multiply
-                                spmv(CblasRowMajor, (MT == triangular_matrix_type::upper ? CblasUpper : CblasLower), nn, alpha, &buffer_a[0], &x[i], 1, f_1, &y[i], 1);
+                                spmv(cblas_layout, (MT == triangular_matrix_type::upper ? CblasUpper : CblasLower), nn, alpha, &buffer_a[0], &x[i], 1, f_1, &y[i], 1);
 
                                 // move on to the next block
                                 k += num_elements_a;
@@ -833,8 +867,9 @@ namespace FP_NAMESPACE
                                 fp<T>::template decompress<BE, BM>(&buffer_a[0], &compressed_data[k], mm * nn);
 
                                 // apply general matrix vector multiplication
-                                gemv(CblasRowMajor, CblasNoTrans, mm, nn, alpha, &buffer_a[0], nn, &x[i], 1, f_1, &y[j], 1);
-                                gemv(CblasRowMajor, CblasTrans, mm, nn, alpha, &buffer_a[0], nn, &x[j], 1, f_1, &y[i], 1);
+                                const std::size_t lda = (L == matrix_layout::rowmajor ? nn : mm);
+                                gemv(cblas_layout, CblasNoTrans, mm, nn, alpha, &buffer_a[0], lda, &x[i], 1, f_1, &y[j], 1);
+                                gemv(cblas_layout, CblasTrans, mm, nn, alpha, &buffer_a[0], lda, &x[j], 1, f_1, &y[i], 1);
 
                                 // move on to the next block
                                 const std::size_t ij = (MT == triangular_matrix_type::upper ? i : j);
@@ -857,7 +892,7 @@ namespace FP_NAMESPACE
                     return;
                 }
 
-                matrix<T, BE, BM>::blas2_frame([&](const bool transpose, const T alpha, const T* x, T* y)
+                matrix<T, L, BE, BM>::blas2_frame([&](const bool transpose, const T alpha, const T* x, T* y)
                 {
                     // allocate local memory
                     alignas(alignment) T buffer_a[bs * bs];
@@ -886,11 +921,13 @@ namespace FP_NAMESPACE
                                 // apply general matrix vector multiplication
                                 if (transpose)
                                 {
-                                    gemv(CblasRowMajor, CblasTrans, nn, mm, f_1, &buffer_a[0], mm, &y[bi * bs], 1, f_1, &buffer_x[0], 1);
+                                    const std::size_t lda = (L == matrix_layout::rowmajor ? mm : nn);
+                                    gemv(cblas_layout, CblasTrans, nn, mm, f_1, &buffer_a[0], lda, &y[bi * bs], 1, f_1, &buffer_x[0], 1);
                                 }
                                 else
                                 {
-                                    gemv(CblasRowMajor, CblasNoTrans, mm, nn, f_1, &buffer_a[0], nn, &y[bi * bs], 1, f_1, &buffer_x[0], 1);
+                                    const std::size_t lda = (L == matrix_layout::rowmajor ? nn : mm);
+                                    gemv(cblas_layout, CblasNoTrans, mm, nn, f_1, &buffer_a[0], lda, &y[bi * bs], 1, f_1, &buffer_x[0], 1);
                                 }
                             }
 
@@ -904,7 +941,7 @@ namespace FP_NAMESPACE
                             fp<T>::template decompress<BE, BM>(&buffer_a[0], &compressed_data[k], (mm * (mm + 1)) / 2);
 
                             // apply triangular solve 
-                            tpsv(CblasRowMajor, (MT == triangular_matrix_type::upper ? CblasUpper : CblasLower), (transpose ? CblasTrans : CblasNoTrans), CblasNonUnit, mm, &buffer_a[0], &y[bj * bs], 1);
+                            tpsv(cblas_layout, (MT == triangular_matrix_type::upper ? CblasUpper : CblasLower), (transpose ? CblasTrans : CblasNoTrans), CblasNonUnit, mm, &buffer_a[0], &y[bj * bs], 1);
                         }
                     }
                     else if ((!transpose && MT == triangular_matrix_type::upper) ||
@@ -931,11 +968,13 @@ namespace FP_NAMESPACE
                                 // apply general matrix vector multiplication
                                 if (transpose)
                                 {
-                                    gemv(CblasRowMajor, CblasTrans, nn, mm, f_1, &buffer_a[0], mm, &y[bi * bs], 1, f_1, &buffer_x[0], 1);
+                                    const std::size_t lda = (L == matrix_layout::rowmajor ? mm : nn);
+                                    gemv(cblas_layout, CblasTrans, nn, mm, f_1, &buffer_a[0], lda, &y[bi * bs], 1, f_1, &buffer_x[0], 1);
                                 }
                                 else
                                 {
-                                    gemv(CblasRowMajor, CblasNoTrans, mm, nn, f_1, &buffer_a[0], nn, &y[bi * bs], 1, f_1, &buffer_x[0], 1);
+                                    const std::size_t lda = (L == matrix_layout::rowmajor ? nn : mm);
+                                    gemv(cblas_layout, CblasNoTrans, mm, nn, f_1, &buffer_a[0], lda, &y[bi * bs], 1, f_1, &buffer_x[0], 1);
                                 }
 
                                 if (bi == i_stop)
@@ -954,7 +993,7 @@ namespace FP_NAMESPACE
                             fp<T>::template decompress<BE, BM>(&buffer_a[0], &compressed_data[k], (mm * (mm + 1)) / 2);
 
                             // apply triangular solve 
-                            tpsv(CblasRowMajor, (MT == triangular_matrix_type::upper ? CblasUpper : CblasLower), (transpose ? CblasTrans : CblasNoTrans), CblasNonUnit, mm, &buffer_a[0], &y[bj * bs], 1);
+                            tpsv(cblas_layout, (MT == triangular_matrix_type::upper ? CblasUpper : CblasLower), (transpose ? CblasTrans : CblasNoTrans), CblasNonUnit, mm, &buffer_a[0], &y[bj * bs], 1);
 
                             if (bj == 0)
                             {

@@ -84,7 +84,8 @@ int main(int argc, char** argv)
         }
 
         std::array<std::size_t, 2> extent({m, n});
-        a_compressed.emplace_back(a[k], extent, n, bs);
+        const std::size_t lda = (L == fw::blas::matrix_layout::rowmajor ? n : m);
+        a_compressed.emplace_back(a[k], extent, lda, bs);
 
         y_ref[k].reserve(m);
         y[k].reserve(m);
@@ -94,7 +95,7 @@ int main(int argc, char** argv)
             y[k][i] = 0.0;
         }
     }
-
+    
     #if defined(BENCHMARK)
     // parameters for the matrix vector multiplication
     const real_t alpha = static_cast<real_t>(1.0);

@@ -13,7 +13,7 @@ void blas_triangular_solve(const bool transpose, const std::size_t n, const real
                 x[i] = y[i] * inv_alpha;
         }
 
-        fw::blas::tpsv(CblasRowMajor, (upper_matrix ? CblasUpper : CblasLower), (transpose ? CblasTrans : CblasNoTrans), CblasNonUnit, n, &a[0], &x[0], 1);
+        fw::blas::tpsv(layout, (upper_matrix ? CblasUpper : CblasLower), (transpose ? CblasTrans : CblasNoTrans), CblasNonUnit, n, &a[0], &x[0], 1);
 }
 
 void fp_triangular_solve(const bool transpose, const real_t alpha, const fp_matrix& a, std::vector<real_t>& x, std::vector<real_t>& y)

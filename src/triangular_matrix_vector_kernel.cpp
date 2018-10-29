@@ -9,7 +9,7 @@ void blas_triangular_matrix_vector(const bool transpose, const std::size_t n, co
 {
     if (symmetric)
     {
-        fw::blas::spmv(CblasRowMajor, (upper_matrix ? CblasUpper : CblasLower), n, alpha, &a[0], &x[0], 1, beta, &y[0], 1);
+        fw::blas::spmv(layout, (upper_matrix ? CblasUpper : CblasLower), n, alpha, &a[0], &x[0], 1, beta, &y[0], 1);
     }
     else
     {
@@ -22,7 +22,7 @@ void blas_triangular_matrix_vector(const bool transpose, const std::size_t n, co
             buffer_y[i] = x[i];
         }
 
-        fw::blas::tpmv(CblasRowMajor, (upper_matrix ? CblasUpper : CblasLower), (transpose ? CblasTrans : CblasNoTrans), CblasNonUnit, n, &a[0], &buffer_y[0], 1);
+        fw::blas::tpmv(layout, (upper_matrix ? CblasUpper : CblasLower), (transpose ? CblasTrans : CblasNoTrans), CblasNonUnit, n, &a[0], &buffer_y[0], 1);
 
         #pragma omp simd
         for (std::size_t i = 0; i < n; ++i)

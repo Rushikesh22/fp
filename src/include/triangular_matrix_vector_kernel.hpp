@@ -27,13 +27,23 @@ static constexpr std::uint32_t BM = _BM;
 static constexpr std::uint32_t BM = 15;
 #endif
 
+#if defined(_ROWMAJOR)
+static constexpr fw::blas::matrix_layout L = fw::blas::matrix_layout::rowmajor;
+#elif defined(_COLMAJOR)
+static constexpr fw::blas::matrix_layout L = fw::blas::matrix_layout::colmajor;
+#else
+static constexpr fw::blas::matrix_layout L = fw::blas::matrix_layout::rowmajor;
+#endif
+
+static constexpr CBLAS_LAYOUT layout = (L == fw::blas::matrix_layout::rowmajor ? CblasRowMajor : CblasColMajor);
+
 // compressed matrix data type
 #if defined(UPPER_MATRIX)
 constexpr bool upper_matrix = true;
-using fp_matrix = typename fw::blas::triangular_matrix<real_t, fw::blas::triangular_matrix_type::upper, BE, BM>;
+using fp_matrix = typename fw::blas::triangular_matrix<real_t, L, fw::blas::triangular_matrix_type::upper, BE, BM>;
 #else
 constexpr bool upper_matrix = false;
-using fp_matrix = typename fw::blas::triangular_matrix<real_t, fw::blas::triangular_matrix_type::lower, BE, BM>;
+using fp_matrix = typename fw::blas::triangular_matrix<real_t, L, fw::blas::triangular_matrix_type::lower, BE, BM>;
 #endif
 
 // prototypes

@@ -22,6 +22,10 @@ namespace FP_NAMESPACE
     namespace blas
     {
         // BLAS call wrapper: matrix matrix multiply
+        //
+        // helpful documentation:
+        // 1) https://software.intel.com/en-us/mkl-developer-reference-c-cblas-gemm
+
         template <typename T>
         static void gemm(const CBLAS_LAYOUT __Order, const CBLAS_TRANSPOSE __TransA, const CBLAS_TRANSPOSE __TransB,
             const std::size_t __M, const std::size_t __N, const std::size_t __K, const T __alpha, const T* __A, const std::size_t __lda,
@@ -45,19 +49,15 @@ namespace FP_NAMESPACE
             const libxsmm_blasint ldc = __ldc;
             const double alpha = __alpha;
             const double beta = __beta;
-
-            if ((__Order == CblasRowMajor) && (transA == 'N' && transB == 'N'))
+            
+            if (__Order == CblasRowMajor)
             {
                 // libxsmm uses column major format per-default: A <-> B, n <-> m
-                libxsmm_dgemm(&transA, &transB, &n, &m, &k, &alpha, __B, &ldb, __A, &lda, &beta, __C, &ldc);
-            }
-            else if (__Order == CblasColMajor)
-            {
-                libxsmm_dgemm(&transA, &transB, &m, &n, &k, &alpha, __A, &lda, __B, &ldb, &beta, __C, &ldc);
+                libxsmm_dgemm(&transB, &transA, &n, &m, &k, &alpha, __B, &ldb, __A, &lda, &beta, __C, &ldc);
             }
             else
             {
-                cblas_dgemm(__Order, __TransA, __TransB, __M, __N, __K, __alpha, __A, __lda, __B, __ldb, __beta, __C, __ldc);    
+                libxsmm_dgemm(&transA, &transB, &m, &n, &k, &alpha, __A, &lda, __B, &ldb, &beta, __C, &ldc);
             }
             #else
             cblas_dgemm(__Order, __TransA, __TransB, __M, __N, __K, __alpha, __A, __lda, __B, __ldb, __beta, __C, __ldc);
@@ -84,18 +84,14 @@ namespace FP_NAMESPACE
             const float alpha = __alpha;
             const float beta = __beta;
 
-            if ((__Order == CblasRowMajor) && (transA == 'N' && transB == 'N'))
+            if (__Order == CblasRowMajor)
             {
                 // libxsmm uses column major format per-default: A <-> B, n <-> m
-                libxsmm_sgemm(&transA, &transB, &n, &m, &k, &alpha, __B, &ldb, __A, &lda, &beta, __C, &ldc);
-            }
-            else if (__Order == CblasColMajor)
-            {
-                libxsmm_sgemm(&transA, &transB, &m, &n, &k, &alpha, __A, &lda, __B, &ldb, &beta, __C, &ldc);
+                libxsmm_sgemm(&transB, &transA, &n, &m, &k, &alpha, __B, &ldb, __A, &lda, &beta, __C, &ldc);
             }
             else
             {
-                cblas_sgemm(__Order, __TransA, __TransB, __M, __N, __K, __alpha, __A, __lda, __B, __ldb, __beta, __C, __ldc);    
+                libxsmm_sgemm(&transA, &transB, &m, &n, &k, &alpha, __A, &lda, __B, &ldb, &beta, __C, &ldc);
             }
             #else
             cblas_sgemm(__Order, __TransA, __TransB, __M, __N, __K, __alpha, __A, __lda, __B, __ldb, __beta, __C, __ldc);
@@ -116,13 +112,22 @@ namespace FP_NAMESPACE
             const double __beta, double* __Y, const std::size_t __incY) 
         {
             #if defined(FP_GEMV_TO_GEMM)
-            if (__M == __N)
+            const std::size_t lda = (__Order == CblasRowMajor ? __N : __M);
+            const std::size_t ldx = (__Order == CblasRowMajor ? __incX : (__TransA == CblasNoTrans ? __N : __M));
+            const std::size_t ldy = (__Order == CblasRowMajor ? __incY : (__TransA == CblasNoTrans ? __M : __N));
+            if (__TransA == CblasNoTrans)
             {
-                gemm(__Order, __TransA, CblasNoTrans, __M, __incX, __N, __alpha, __A, __N, __X, __incX, __beta, __Y, __incY);
+                // m, n, k : for the gemm call it is the dimensions of matrix OP(A) and OP(B) (NOT A and B)!
+                gemm(__Order, __TransA, CblasNoTrans, __M, __incX, __N, __alpha, __A, lda, __X, ldx, __beta, __Y, ldy);
             }
             else
-            #endif
+            {
+                // m, n, k : for the gemm call it is the dimensions of matrix OP(A) and OP(B) (NOT A and B)!
+                gemm(__Order, __TransA, CblasNoTrans, __N, __incX, __M, __alpha, __A, lda, __X, ldx, __beta, __Y, ldy);
+            }
+            #else
             cblas_dgemv(__Order, __TransA, __M, __N, __alpha, __A, __lda, __X, __incX, __beta, __Y, __incY);
+            #endif
         }
 
         template <>
@@ -132,13 +137,22 @@ namespace FP_NAMESPACE
             const float __beta, float* __Y, const std::size_t __incY) 
         {
             #if defined(FP_GEMV_TO_GEMM)
-            if (__M == __N)
+            const std::size_t lda = (__Order == CblasRowMajor ? __N : __M);
+            const std::size_t ldx = (__Order == CblasRowMajor ? __incX : (__TransA == CblasNoTrans ? __N : __M));
+            const std::size_t ldy = (__Order == CblasRowMajor ? __incY : (__TransA == CblasNoTrans ? __M : __N));
+            if (__TransA == CblasNoTrans)
             {
-                gemm(__Order, __TransA, CblasNoTrans, __M, __incX, __N, __alpha, __A, __N, __X, __incX, __beta, __Y, __incY);
+                // m, n, k : for the gemm call it is the dimensions of matrix OP(A) and OP(B) (NOT A and B)!
+                gemm(__Order, __TransA, CblasNoTrans, __M, __incX, __N, __alpha, __A, lda, __X, ldx, __beta, __Y, ldy);
             }
             else
-            #endif
+            {
+                // m, n, k : for the gemm call it is the dimensions of matrix OP(A) and OP(B) (NOT A and B)!
+                gemm(__Order, __TransA, CblasNoTrans, __N, __incX, __M, __alpha, __A, lda, __X, ldx, __beta, __Y, ldy);
+            }
+            #else
             cblas_sgemv(__Order, __TransA, __M, __N, __alpha, __A, __lda, __X, __incX, __beta, __Y, __incY);
+            #endif
         }
 
         // BLAS call wrapper: triangular packed matrix vector multiply

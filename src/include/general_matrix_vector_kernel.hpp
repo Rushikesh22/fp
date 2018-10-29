@@ -27,8 +27,18 @@ static constexpr std::uint32_t BM = _BM;
 static constexpr std::uint32_t BM = 15;
 #endif
 
+#if defined(_ROWMAJOR)
+static constexpr fw::blas::matrix_layout L = fw::blas::matrix_layout::rowmajor;
+#elif defined(_COLMAJOR)
+static constexpr fw::blas::matrix_layout L = fw::blas::matrix_layout::colmajor;
+#else
+static constexpr fw::blas::matrix_layout L = fw::blas::matrix_layout::rowmajor;
+#endif
+
+constexpr CBLAS_LAYOUT layout = (L == fw::blas::matrix_layout::rowmajor ? CblasRowMajor : CblasColMajor);
+
 // compressed matrix data type
-using fp_matrix = typename fw::blas::matrix<real_t, BE, BM>;
+using fp_matrix = typename fw::blas::matrix<real_t, L, BE, BM>;
 
 // prototypes
 void blas_matrix_vector(const bool transpose, const std::size_t m, const std::size_t n, const real_t alpha, const std::vector<real_t>& a, const std::vector<real_t>& x, const real_t beta, std::vector<real_t>& y);
