@@ -21,6 +21,11 @@
 #define FP_NAMESPACE fw
 #endif
 
+#define FP_PREFETCH
+#if defined(FP_PREFETCH) && !defined(FP_PREFETCH_LEVEL)
+#define FP_PREFETCH_LEVEL 3
+#endif
+
 namespace FP_NAMESPACE
 {
 	namespace blas
@@ -424,14 +429,20 @@ namespace FP_NAMESPACE
                             // decompress the block
                             fp<T>::template decompress<BE, BM>(&buffer_a[0], &compressed_data[k], mm * nn);
 
+                            // move on to the next block  and prefetch data
+                            k += ((n - i) < bs ? num_elements_b : k_inc);
+                            #if defined(FP_PREFETCH)
+                            if (!(j > (m - bs) && i > (n - bs)))
+                            {
+                                __builtin_prefetch(reinterpret_cast<const void*>(&compressed_data[k]), 0, FP_PREFETCH_LEVEL);
+                            }
+                            #endif
+
                             // apply general blas matrix vector multiplication
                             const std::size_t lda = (L == matrix_layout::rowmajor ? nn : mm);
                             const std::size_t src_idx = (transpose ? j : i);
                             const std::size_t dst_idx = (transpose ? i : j);
                             gemv(cblas_layout, (transpose ? CblasTrans : CblasNoTrans), mm, nn, alpha, &buffer_a[0], lda, &x[src_idx], 1, f_1, &y[dst_idx], 1);
-
-                            // move on to the next block
-                            k += ((n - i) < bs ? num_elements_b : k_inc);
                         }
                     }
                 }, transpose, alpha, x, beta, y);
@@ -755,7 +766,7 @@ namespace FP_NAMESPACE
                             {
                                 // decompress the 'buffer'
                                 fp<T>::template decompress<BE, BM>(&buffer_a[0], &compressed_data[k], (nn * (nn + 1)) / 2);    
-
+                                
                                 // prepare call to tpmv
                                 for (std::size_t jj = 0; jj < nn; ++jj)
                                 {
@@ -797,21 +808,32 @@ namespace FP_NAMESPACE
                             // skip diagonal blocks
                             if (i == j)
                             {
+                                // move to the next block and prefetch data
                                 k += num_elements_a;
+                                #if defined(FP_PREFETCH)
+                                if (j < (n - bs))
+                                {
+                                    __builtin_prefetch(reinterpret_cast<const void*>(&compressed_data[k]), 0, FP_PREFETCH_LEVEL);
+                                }
+                                #endif
                             }
                             else
                             {
                                 // decompress the 'buffer'
                                 fp<T>::template decompress<BE, BM>(&buffer_a[0], &compressed_data[k], mm * nn);
 
+                                // move to the next block and prefetch data
+                                const std::size_t ij = (MT == triangular_matrix_type::upper ? i : j);
+                                k += ((n - ij) < bs ? num_elements_c : num_elements_b);
+                                #if defined(FP_PREFETCH)
+                                __builtin_prefetch(reinterpret_cast<const void*>(&compressed_data[k]), 0, FP_PREFETCH_LEVEL);
+                                #endif
+
                                 // apply blas matrix vector multiplication
                                 const std::size_t lda = (L == matrix_layout::rowmajor ? nn : mm);
                                 const std::size_t src_idx = (transpose ? j : i);
                                 const std::size_t dst_idx = (transpose ? i : j);
                                 gemv(cblas_layout, (transpose ? CblasTrans : CblasNoTrans), mm, nn, alpha, &buffer_a[0], lda, &x[src_idx], 1, f_1, &y[dst_idx], 1);
-
-                                const std::size_t ij = (MT == triangular_matrix_type::upper ? i : j);
-                                k += ((n - ij) < bs ? num_elements_c : num_elements_b);
                             }
                         }
                     }
@@ -852,11 +874,17 @@ namespace FP_NAMESPACE
                                 // decompress the 'buffer'
                                 fp<T>::template decompress<BE, BM>(&buffer_a[0], &compressed_data[k], (nn * (nn + 1)) / 2);
 
+                                // move on to the next block and prefetch data
+                                k += num_elements_a;
+                                #if defined(FP_PREFETCH)
+                                if (j < (n - bs))
+                                {
+                                    __builtin_prefetch(reinterpret_cast<const void*>(&compressed_data[k]), 0, FP_PREFETCH_LEVEL);
+                                }
+                                #endif
+
                                 // apply symmetric matrix vector multiply
                                 spmv(cblas_layout, (MT == triangular_matrix_type::upper ? CblasUpper : CblasLower), nn, alpha, &buffer_a[0], &x[i], 1, f_1, &y[i], 1);
-
-                                // move on to the next block
-                                k += num_elements_a;
                             }
                             // non-diagonal blocks
                             else
@@ -864,14 +892,18 @@ namespace FP_NAMESPACE
                                 // decompress the 'buffer'
                                 fp<T>::template decompress<BE, BM>(&buffer_a[0], &compressed_data[k], mm * nn);
 
+                                // move on to the next block
+                                const std::size_t ij = (MT == triangular_matrix_type::upper ? i : j);
+                                k += ((n - ij) < bs ? num_elements_c : num_elements_b);
+                                #if defined(FP_PREFETCH)
+                                __builtin_prefetch(reinterpret_cast<const void*>(&compressed_data[k]), 0, FP_PREFETCH_LEVEL);
+                                #endif
+
                                 // apply general matrix vector multiplication
                                 const std::size_t lda = (L == matrix_layout::rowmajor ? nn : mm);
                                 gemv(cblas_layout, CblasNoTrans, mm, nn, alpha, &buffer_a[0], lda, &x[i], 1, f_1, &y[j], 1);
                                 gemv(cblas_layout, CblasTrans, mm, nn, alpha, &buffer_a[0], lda, &x[j], 1, f_1, &y[i], 1);
 
-                                // move on to the next block
-                                const std::size_t ij = (MT == triangular_matrix_type::upper ? i : j);
-                                k += ((n - ij) < bs ? num_elements_c : num_elements_b);
                             }
                         }
                     }
@@ -915,6 +947,15 @@ namespace FP_NAMESPACE
                                 // decompress the 'buffer'
                                 const std::size_t k = (transpose ? get_offset(MT, bi, bj) : get_offset(MT, bj, bi));
                                 fp<T>::template decompress<BE, BM>(&buffer_a[0], &compressed_data[k], mm * nn);
+
+                                #if defined(FP_PREFETCH)
+                                // prefetch the next block
+                                if ((bi + 1) < bj)
+                                {
+                                    const std::size_t next_k = (transpose ? get_offset(MT, bi + 1, bj) : get_offset(MT, bj, bi + 1));
+                                    __builtin_prefetch(reinterpret_cast<const void*>(&compressed_data[next_k]), 0, FP_PREFETCH_LEVEL);
+                                }
+                                #endif
 
                                 // apply general matrix vector multiplication
                                 if (transpose)
@@ -962,6 +1003,15 @@ namespace FP_NAMESPACE
                                 // decompress the 'buffer'
                                 const std::size_t k = (transpose ? get_offset(MT, bi, bj) : get_offset(MT, bj, bi));
                                 fp<T>::template decompress<BE, BM>(&buffer_a[0], &compressed_data[k], mm * nn);
+
+                                #if defined(FP_PREFETCH)
+                                // prefetch the next block
+                                if (bi > i_stop)
+                                {
+                                    const std::size_t next_k = (transpose ? get_offset(MT, bi - 1, bj) : get_offset(MT, bj, bi - 1));
+                                    __builtin_prefetch(reinterpret_cast<const void*>(&compressed_data[next_k]), 0, FP_PREFETCH_LEVEL);
+                                }
+                                #endif
 
                                 // apply general matrix vector multiplication
                                 if (transpose)
