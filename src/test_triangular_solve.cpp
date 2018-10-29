@@ -72,26 +72,27 @@ int main(int argc, char** argv)
         srand48(k + 1);
         for (std::size_t j = 0; j < n; ++j)
         {
-            if (upper_matrix)
+            if ((upper_matrix) && (L == fw::blas::matrix_layout::rowmajor) ||
+                (!upper_matrix) && (L == fw::blas::matrix_layout::colmajor))
             {
                 for (std::size_t i = 0; i < j; ++i)
                 {
-                    a[k][fw::blas::idx<L>(j, i, n, n)] = 0.0;
+                    a[k][j * n + i] = 0.0;
                 }
                 for (std::size_t i = j; i < n; ++i)
                 {
-                    a[k][fw::blas::idx<L>(j, i, n, n)] = 0.95 + 0.1 * drand48();
+                    a[k][j * n + i] = 0.9 + 0.2 * drand48();
                 }
             }
             else
             {
                 for (std::size_t i = 0; i <= j; ++i)
                 {
-                    a[k][fw::blas::idx<L>(j, i, n, n)] = 0.95 + 0.1 * drand48();
+                    a[k][j * n + i] = 0.9 + 0.2 * drand48();
                 }
                 for (std::size_t i = (j + 1); i < n; ++i)
                 {
-                    a[k][fw::blas::idx<L>(j, i, n, n)] = 0.0;
+                    a[k][j * n + i] = 0.0;
                 }
             }
         }

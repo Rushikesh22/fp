@@ -337,7 +337,6 @@ namespace FP_NAMESPACE
                         // copy blocks into the 'buffer'
                         for (std::size_t jj = 0; jj < mm; ++jj)
                         {
-                            #pragma omp simd
                             for (std::size_t ii = 0; ii < nn; ++ii)
                             {
                                 buffer[idx<L>(jj, ii, mm, nn)] = data[idx<L>(j + jj, i + ii, ld_data, ld_data)];
@@ -646,7 +645,6 @@ namespace FP_NAMESPACE
                             // non-diagonal blocks
                             else
                             {
-                                #pragma omp simd
                                 for (std::size_t ii = 0; ii < nn; ++ii)
                                 {
                                     buffer[idx<L>(jj, ii, mm, nn)] = data[idx<L>(j + jj, i + ii, ld_data, ld_data)];
