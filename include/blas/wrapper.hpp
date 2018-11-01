@@ -112,7 +112,8 @@ namespace FP_NAMESPACE
             const double __beta, double* __Y, const std::size_t __incY) 
         {
             #if defined(FP_GEMV_TO_GEMM)
-            const std::size_t lda = (__Order == CblasRowMajor ? __N : __M);
+            //const std::size_t lda = (__Order == CblasRowMajor ? __N : __M);
+            const std::size_t lda = __lda;
             const std::size_t ldx = (__Order == CblasRowMajor ? __incX : (__TransA == CblasNoTrans ? __N : __M));
             const std::size_t ldy = (__Order == CblasRowMajor ? __incY : (__TransA == CblasNoTrans ? __M : __N));
             if (__TransA == CblasNoTrans)
@@ -137,7 +138,8 @@ namespace FP_NAMESPACE
             const float __beta, float* __Y, const std::size_t __incY) 
         {
             #if defined(FP_GEMV_TO_GEMM)
-            const std::size_t lda = (__Order == CblasRowMajor ? __N : __M);
+            //const std::size_t lda = (__Order == CblasRowMajor ? __N : __M);
+            const std::size_t lda = __lda;
             const std::size_t ldx = (__Order == CblasRowMajor ? __incX : (__TransA == CblasNoTrans ? __N : __M));
             const std::size_t ldy = (__Order == CblasRowMajor ? __incY : (__TransA == CblasNoTrans ? __M : __N));
             if (__TransA == CblasNoTrans)

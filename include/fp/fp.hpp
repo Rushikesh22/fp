@@ -15,6 +15,14 @@
 #define FP_NAMESPACE fw 
 #endif
 
+#if !defined(FP_MAX_UINT8)
+#define FP_MAX_UINT8 0xFFU
+#endif
+
+#if !defined(FP_MAX_UINT16)
+#define FP_MAX_UINT16 0xFFFFU
+#endif
+
 namespace FP_NAMESPACE
 {
     //! \brief Get maximum
@@ -870,7 +878,7 @@ namespace FP_NAMESPACE
         float maximum = scan_max(in, n);
 
         const float a = minimum;
-        const float b = 0xFFFFU / (maximum - a);
+        const float b = FP_MAX_UINT16 / (maximum - a);
 
         float* fptr_out = reinterpret_cast<float*>(out);
         fptr_out[0] = a;
@@ -951,7 +959,7 @@ namespace FP_NAMESPACE
         float maximum = scan_max(in, n);
 
         const float a = minimum;
-        const float b = 0xFFFFU / (maximum - a);
+        const float b = FP_MAX_UINT16 / (maximum - a);
 
         float* fptr_out = reinterpret_cast<float*>(out);
         fptr_out[0] = a;
@@ -987,195 +995,6 @@ namespace FP_NAMESPACE
         for (std::size_t i = 0; i < n; ++i)
         {
             out[i] = ptr_in[i] * b + a;
-        }
-    }
-
-    ////////////////////////////////////////////////////////////////////////////////////
-    // SPECIALIZATIONS: fixed precision 12 bit
-    ////////////////////////////////////////////////////////////////////////////////////
-    template <>
-    template <>
-    struct fp<double>::format<0, 11>
-    {
-        using type = std::uint8_t;
-
-        static inline std::size_t memory_footprint_bytes(const std::size_t n)
-        {
-            if (n == 0)
-            {
-                return 0;
-            }
-            else
-            {
-                return (2 * sizeof(float) + ((n + 1) / 2) * 3 * sizeof(type));
-            }
-        }
-
-        static inline std::size_t memory_footprint_elements(const std::size_t n)
-        {
-            return memory_footprint_bytes(n) / sizeof(type);
-        }
-    };
-
-    template <>
-    template <>
-    inline void fp<double>::compress<0, 11>(typename format<0, 11>::type* out, const double* in, const std::size_t n)
-    {
-        if (n == 0)
-        {
-            return;
-        }
-
-        float minimum = scan_min(in, n);
-        float maximum = scan_max(in, n);
-
-        const float a = minimum;
-        const float b = 0xFFFU / (maximum - a);
-
-        float* fptr_out = reinterpret_cast<float*>(out);
-        fptr_out[0] = a;
-        fptr_out[1] = 1.0F / b;
-
-        using out_t = typename format<0, 11>::type;
-        out_t* ptr_out = reinterpret_cast<out_t*>(&fptr_out[2]);
-
-        const std::size_t i_max = (n / 2) * 2;
-        for (std::size_t i = 0; i < i_max; i += 2)
-        {
-            const std::uint32_t tmp = static_cast<std::uint32_t>((static_cast<float>(in[i + 0]) - a) * b) | (static_cast<std::uint32_t>((static_cast<float>(in[i + 1]) - a) * b) << 12);
-            *reinterpret_cast<std::uint32_t*>(ptr_out) = tmp;
-            ptr_out += 3;
-        }
-
-        if (n % 2)
-        {
-            const std::uint16_t tmp = static_cast<std::uint16_t>((in[n - 1] - a) * b);
-            *reinterpret_cast<std::uint16_t*>(ptr_out) = tmp;
-        }
-    }
-
-    template <>
-    template <>
-    inline void fp<double>::decompress<0, 11>(double* out, const typename format<0, 11>::type* in, const std::size_t n)
-    {
-        if (n == 0)
-        {
-            return;
-        }
-
-        const float* fptr_in = reinterpret_cast<const float*>(in);
-        const float a = fptr_in[0];
-        const float b = fptr_in[1];
-
-        using in_t = typename format<0, 11>::type;
-        const in_t* ptr_in = reinterpret_cast<const in_t*>(&fptr_in[2]);
-        
-        const std::size_t i_max = (n / 2) * 2;
-        for (std::size_t i = 0, k = 0; i < i_max; i += 2, k += 3)
-        {
-            const std::uint32_t tmp = *(reinterpret_cast<const std::uint32_t*>(&ptr_in[k]));
-            out[i + 0] = (tmp & 0xFFFU) * b + a;
-            out[i + 1] = ((tmp >> 12) & 0xFFFU) * b + a;
-            ptr_in += 3;
-        }
-
-        if (n % 2)
-        {
-            const std::uint16_t tmp = *(reinterpret_cast<const std::uint16_t*>(ptr_in));
-            out[n - 1] = (tmp & 0xFFFU) * b + a;
-        }
-    }
-    
-    template <>
-    template <>
-    struct fp<float>::format<0, 11>
-    {
-        using type = std::uint8_t;
-
-        static inline std::size_t memory_footprint_bytes(const std::size_t n)
-        {
-            if (n == 0)
-            {
-                return 0;
-            }
-            else
-            {
-                return (2 * sizeof(float) + ((n + 1) / 2) * 3 * sizeof(type));
-            }
-        }
-
-        static inline std::size_t memory_footprint_elements(const std::size_t n)
-        {
-            return memory_footprint_bytes(n) / sizeof(type);
-        }
-    };
-
-    template <>
-    template <>
-    inline void fp<float>::compress<0, 11>(typename format<0, 11>::type* out, const float* in, const std::size_t n)
-    {
-        if (n == 0)
-        {
-            return;
-        }
-
-        float minimum = scan_min(in, n);
-        float maximum = scan_max(in, n);
-
-        const float a = minimum;
-        const float b = 0xFFFU / (maximum - a);
-
-        float* fptr_out = reinterpret_cast<float*>(out);
-        fptr_out[0] = a;
-        fptr_out[1] = 1.0F / b;
-
-        using out_t = typename format<0, 11>::type;
-        out_t* ptr_out = reinterpret_cast<out_t*>(&fptr_out[2]);
-
-        const std::size_t i_max = (n / 2) * 2;
-        for (std::size_t i = 0; i < i_max; i += 2)
-        {
-            const std::uint32_t tmp = static_cast<std::uint32_t>((in[i + 0] - a) * b) | (static_cast<std::uint32_t>((in[i + 1] - a) * b) << 12);
-            *(reinterpret_cast<std::uint32_t*>(ptr_out)) = tmp;
-            ptr_out += 3;
-        }
-
-        if (n % 2)
-        {
-            const std::uint16_t tmp = static_cast<std::uint16_t>((in[n - 1] - a) * b);
-            *(reinterpret_cast<std::uint16_t*>(ptr_out)) = tmp;
-        }
-    }
-
-    template <>
-    template <>
-    inline void fp<float>::decompress<0, 11>(float* out, const typename format<0, 11>::type* in, const std::size_t n)
-    {
-        if (n == 0)
-        {
-            return;
-        }
-
-        const float* fptr_in = reinterpret_cast<const float*>(in);
-        const float a = fptr_in[0];
-        const float b = fptr_in[1];
-
-        using in_t = typename format<0, 11>::type;
-        const in_t* ptr_in = reinterpret_cast<const in_t*>(&fptr_in[2]);
-        
-        const std::size_t i_max = (n / 2) * 2;
-        for (std::size_t i = 0; i < i_max; i += 2)
-        {
-            const std::uint32_t tmp = *(reinterpret_cast<const std::uint32_t*>(ptr_in));
-            out[i + 0] = (tmp & 0xFFFU) * b + a;
-            out[i + 1] = ((tmp >> 12) & 0xFFFU) * b + a;
-            ptr_in += 3;
-        }
-
-        if (n % 2)
-        {
-            const std::uint16_t tmp = *(reinterpret_cast<const std::uint16_t*>(ptr_in));
-            out[n - 1] = (tmp & 0xFFFU) * b + a;
         }
     }
 
@@ -1219,7 +1038,7 @@ namespace FP_NAMESPACE
         float maximum = scan_max(in, n);
 
         const float a = minimum;
-        const float b = 0xFFU / (maximum - a);
+        const float b = FP_MAX_UINT8 / (maximum - a);
 
         float* fptr_out = reinterpret_cast<float*>(out);
         fptr_out[0] = a;
@@ -1229,9 +1048,10 @@ namespace FP_NAMESPACE
         out_t* ptr_out = reinterpret_cast<out_t*>(&fptr_out[2]);
         
         #if defined(FP_USE_INTRINSICS) && (defined(__AVX2__) || defined(__AVX512F__))
-            const std::size_t chunk_size = 32;
-            const std::size_t n_max = (n / chunk_size) * chunk_size;
-
+        constexpr std::size_t chunk_size = 32;
+        const std::size_t n_max = (FP_MAX_UINT8 == 0xFFU ? (n / chunk_size) * chunk_size : 0);
+        if (n_max > 0)
+        {            
             for (std::size_t i = 0; i < n_max; i += chunk_size)
             {
                 __m256 v256_in_1 = _mm256_insertf128_ps(_mm256_castps128_ps256(_mm256_cvtpd_ps(_mm256_loadu_pd(reinterpret_cast<const double*>(&in[i + 0])))),
@@ -1252,8 +1072,9 @@ namespace FP_NAMESPACE
                 __m256i v256_packedhi = _mm256_packus_epi32(_mm256_cvtps_epi32(v256_unpacked_3), _mm256_cvtps_epi32(v256_unpacked_4));
                 _mm256_storeu_si256(reinterpret_cast<__m256i*>(&ptr_out[i]), _mm256_packus_epi16(v256_packedlo, v256_packedhi));
             }
+        }
         #else
-            const std::size_t n_max = 0;
+        const std::size_t n_max = 0;
         #endif
 
         #pragma omp simd
@@ -1280,9 +1101,10 @@ namespace FP_NAMESPACE
         const in_t* ptr_in = reinterpret_cast<const in_t*>(&fptr_in[2]);
 
         #if defined(FP_USE_INTRINSICS) && (defined(__AVX2__) || defined(__AVX512F__))
-            const std::size_t chunk_size = 32;
-            const std::size_t n_max = (n / chunk_size) * chunk_size;
-
+        constexpr std::size_t chunk_size = 32;
+        const std::size_t n_max = (FP_MAX_UINT8 == 0xFFU ? (n / chunk_size) * chunk_size : 0);
+        if (n_max > 0)
+        {
             for (std::size_t i = 0; i < n_max; i += chunk_size)
             {
                 __m256i v256_packed = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(&ptr_in[i]));
@@ -1303,8 +1125,9 @@ namespace FP_NAMESPACE
                     _mm256_storeu_pd(reinterpret_cast<double*>(&out[i + ii * 8 + 4]), tmp_2);
                 }
             }
+        }
         #else
-            const std::size_t n_max = 0;
+        const std::size_t n_max = 0;
         #endif
 
         #pragma omp simd
@@ -1352,7 +1175,7 @@ namespace FP_NAMESPACE
         float maximum = scan_max(in, n);
 
         const float a = minimum;
-        const float b = 0xFFU / (maximum - a);
+        const float b = FP_MAX_UINT8 / (maximum - a);
 
         float* fptr_out = reinterpret_cast<float*>(out);
         fptr_out[0] = a;
@@ -1361,10 +1184,11 @@ namespace FP_NAMESPACE
         using out_t = typename format<0, 7>::type;
         out_t* ptr_out = reinterpret_cast<out_t*>(&fptr_out[2]);
 
-        #if defined(FP_USE_INTRINSICS) && defined(__AVX2__)
-            const std::size_t chunk_size = 32;
-            const std::size_t n_max = (n / chunk_size) * chunk_size;
-
+        #if defined(FP_USE_INTRINSICS) && (defined(__AVX2__) || defined(__AVX512F__))
+        constexpr std::size_t chunk_size = 32;
+        const std::size_t n_max = (FP_MAX_UINT8 == 0xFFU ? (n / chunk_size) * chunk_size : 0);
+        if (n_max > 0)
+        {
             for (std::size_t i = 0; i < n_max; i += chunk_size)
             {
                 __m256 v256_in_1 = _mm256_loadu_ps(reinterpret_cast<const float*>(&in[i + 0]));
@@ -1381,8 +1205,9 @@ namespace FP_NAMESPACE
                 __m256i v256_packedhi = _mm256_packus_epi32(_mm256_cvtps_epi32(v256_unpacked_3), _mm256_cvtps_epi32(v256_unpacked_4));
                 _mm256_storeu_si256(reinterpret_cast<__m256i*>(&ptr_out[i]), _mm256_packus_epi16(v256_packedlo, v256_packedhi));
             }
+        }
         #else
-            const std::size_t n_max = 0;
+        const std::size_t n_max = 0;
         #endif
 
         #pragma omp simd
@@ -1408,10 +1233,11 @@ namespace FP_NAMESPACE
         using in_t = typename format<0, 7>::type;
         const in_t* ptr_in = reinterpret_cast<const in_t*>(&fptr_in[2]);
         
-        #if defined(FP_USE_INTRINSICS) && defined(__AVX2__)
-            const std::size_t chunk_size = 32;
-            const std::size_t n_max = (n / chunk_size) * chunk_size;
-
+        #if defined(FP_USE_INTRINSICS) && (defined(__AVX2__) || defined(__AVX512F__))
+        constexpr std::size_t chunk_size = 32;
+        const std::size_t n_max = (FP_MAX_UINT8 == 0xFFU ? (n / chunk_size) * chunk_size : 0);
+        if (n_max > 0)
+        {
             for (std::size_t i = 0; i < n_max; i += chunk_size)
             {
                 __m256i v256_packed = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(&ptr_in[i]));
@@ -1430,8 +1256,9 @@ namespace FP_NAMESPACE
                     _mm256_storeu_ps(reinterpret_cast<float*>(&out[i + ii * 8]), tmp_1);
                 }
             }
+        }
         #else
-            const std::size_t n_max = 0;
+        const std::size_t n_max = 0;
         #endif
 
         #pragma omp simd
