@@ -157,6 +157,22 @@ namespace FP_NAMESPACE
             #endif
         }
 
+        #if defined(FP_MKL_INTEGER_GEMM_AVAILABLE)
+        static void gemv_8bit(const matrix_layout layout, const bool transpose, const MKL_INT m, const MKL_INT n, const MKL_INT8* a, const MKL_INT8* x, MKL_INT* y)
+        {
+            const CBLAS_LAYOUT cblas_layout = (layout == matrix_layout::rowmajor ? CblasRowMajor : CblasColMajor);
+            const MKL_INT M = 1;
+            const MKL_INT N = (transpose ? n : m);
+            const MKL_INT K = (transpose ? m : n);
+            const MKL_INT lda = (layout == matrix_layout::rowmajor ? n : m);
+            const MKL_INT ldx = (layout == matrix_layout::rowmajor ? 1 : (transpose ? m : n));
+            const MKL_INT ldy = (layout == matrix_layout::rowmajor ? (transpose ? n : m) : 1);
+            const MKL_INT dummy = 0;
+
+            cblas_gemm_s8u8s32(cblas_layout, CblasTrans, (transpose ? CblasNoTrans : CblasTrans), CblasFixOffset, M, N, K, 1.0F, &x[0], ldx, 0, &a[0], lda, 0, 0.0F, &y[0], ldy, &dummy);
+        }
+        #endif
+
         // BLAS call wrapper: triangular packed matrix vector multiply
         template <typename T>
         static void tpmv(const CBLAS_LAYOUT __Order, const CBLAS_UPLO __Uplo, const CBLAS_TRANSPOSE __TransA, const CBLAS_DIAG __Diag,
