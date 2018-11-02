@@ -158,18 +158,45 @@ namespace FP_NAMESPACE
         }
 
         #if defined(FP_MKL_INTEGER_GEMM_AVAILABLE)
-        static void gemv_8bit(const matrix_layout layout, const bool transpose, const MKL_INT m, const MKL_INT n, const MKL_INT8* a, const MKL_INT8* x, MKL_INT* y)
-        {
-            const CBLAS_LAYOUT cblas_layout = (layout == matrix_layout::rowmajor ? CblasRowMajor : CblasColMajor);
-            const MKL_INT M = 1;
-            const MKL_INT N = (transpose ? n : m);
-            const MKL_INT K = (transpose ? m : n);
-            const MKL_INT lda = (layout == matrix_layout::rowmajor ? n : m);
-            const MKL_INT ldx = (layout == matrix_layout::rowmajor ? 1 : (transpose ? m : n));
-            const MKL_INT ldy = (layout == matrix_layout::rowmajor ? (transpose ? n : m) : 1);
-            const MKL_INT dummy = 0;
+        template <typename T>
+        static void gemv(const matrix_layout layout, const bool transpose, const std::size_t m, const std::size_t n, const T* a, const T* x, std::int32_t* y);
 
-            cblas_gemm_s8u8s32(cblas_layout, CblasTrans, (transpose ? CblasNoTrans : CblasTrans), CblasFixOffset, M, N, K, 1.0F, &x[0], ldx, 0, &a[0], lda, 0, 0.0F, &y[0], ldy, &dummy);
+        template <>
+        void gemv<std::int16_t>(const matrix_layout layout, const bool transpose, const std::size_t m, const std::size_t n, const std::int16_t* a, const std::int16_t* x, std::int32_t* y)
+        {
+            const std::size_t M = 1;
+            const std::size_t N = (transpose ? n : m);
+            const std::size_t K = (transpose ? m : n);
+            const std::size_t lda = (layout == matrix_layout::rowmajor ? n : m);
+            const std::size_t ldx = (layout == matrix_layout::rowmajor ? 1 : (transpose ? m : n));
+            const std::size_t ldy = (layout == matrix_layout::rowmajor ? (transpose ? n : m) : 1);
+            const std::int32_t dummy = 0;
+
+            cblas_gemm_s16s16s32((layout == matrix_layout::rowmajor ? CblasRowMajor : CblasColMajor), CblasTrans, (transpose ? CblasNoTrans : CblasTrans), CblasFixOffset,
+                      M, N, K,
+                1.0F, reinterpret_cast<const MKL_INT16*>(&x[0]), ldx, 0, 
+                      reinterpret_cast<const MKL_INT16*>(&a[0]), lda, 0,
+                0.0F, reinterpret_cast<MKL_INT*>(&y[0]), ldy, 
+                      reinterpret_cast<const MKL_INT*>(&dummy));
+        }
+
+        template <>
+        void gemv<std::int8_t>(const matrix_layout layout, const bool transpose, const std::size_t m, const std::size_t n, const std::int8_t* a, const std::int8_t* x, std::int32_t* y)
+        {
+            const std::size_t M = 1;
+            const std::size_t N = (transpose ? n : m);
+            const std::size_t K = (transpose ? m : n);
+            const std::size_t lda = (layout == matrix_layout::rowmajor ? n : m);
+            const std::size_t ldx = (layout == matrix_layout::rowmajor ? 1 : (transpose ? m : n));
+            const std::size_t ldy = (layout == matrix_layout::rowmajor ? (transpose ? n : m) : 1);
+            const std::int32_t dummy = 0;
+            
+            cblas_gemm_s8u8s32((layout == matrix_layout::rowmajor ? CblasRowMajor : CblasColMajor), CblasTrans, (transpose ? CblasNoTrans : CblasTrans), CblasFixOffset,
+                      M, N, K,
+                1.0F, reinterpret_cast<const MKL_INT8*>(&x[0]), ldx, 0, 
+                      reinterpret_cast<const MKL_INT8*>(&a[0]), lda, 0,
+                0.0F, reinterpret_cast<MKL_INT*>(&y[0]), ldy,
+                      reinterpret_cast<const MKL_INT*>(&dummy));
         }
         #endif
 

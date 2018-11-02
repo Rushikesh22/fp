@@ -23,6 +23,7 @@ constexpr std::size_t bs_default = 32;
 #if defined(BENCHMARK)
 constexpr std::size_t warmup = 5;
 constexpr std::size_t measurement = 10;
+constexpr bool transpose_benchmark = true;
 #else
 constexpr std::size_t warmup = 0;
 constexpr std::size_t measurement = 1;
@@ -118,7 +119,7 @@ int main(int argc, char** argv)
     #if defined(BENCHMARK)
     // parameters for the matrix vector multiplication
     const real_t alpha = static_cast<real_t>(1.0);
-    const bool transpose = false;
+    const bool transpose = transpose_benchmark;
     kernel(alpha, transpose, n, a, a_compressed, x_ref, x, y, use_blas);
     #else
     {

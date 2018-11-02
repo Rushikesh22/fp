@@ -9,6 +9,7 @@
 #include <cstdint>
 #include <cstring>
 #include <cmath>
+#include <type_traits>
 #include <immintrin.h>
 
 #if !defined(FP_NAMESPACE)
@@ -837,7 +838,62 @@ namespace FP_NAMESPACE
             out[i] = *reinterpret_cast<const float*>(&tmp);
         }
     }
-    
+
+    ////////////////////////////////////////////////////////////////////////////////////
+    // HELPER: fixed precision
+    ////////////////////////////////////////////////////////////////////////////////////
+    enum class fp2int { signed_conversion = 0, unsigned_conversion = 1 };
+
+    template <typename T, typename TT>
+    static void recode_fixed_point_kernel(TT* out, const T* in, const std::size_t n, const std::size_t m, const T a, const T b, T* p_1 = nullptr, T* p_2 = nullptr, T* p_3 = nullptr)
+    {
+        if (n == 0)
+        {
+            return;
+        }
+
+        TT* ptr_out = out;
+        if (p_1 == nullptr && p_2 == nullptr)
+        {
+            // in this case the rescaling parameters 'a' and 'b' are stored
+            // together with the output bitstream as 'float's
+            T* fptr_out = reinterpret_cast<T*>(out);
+            fptr_out[0] = a;
+            fptr_out[1] = 1 / b;
+            ptr_out = reinterpret_cast<TT*>(&fptr_out[2]);
+        }
+        else
+        {
+            if (p_1 != nullptr)
+            {
+                (*p_1) = a;
+            }
+            if (p_2 != nullptr)
+            {
+                (*p_2) = 1 / b;
+            }
+        }
+
+        #pragma omp simd
+        for (std::size_t i = 0; i < n; ++i)
+        {
+            ptr_out[i] = (in[i] - a) * b;
+        }
+
+        if (p_3 != nullptr)
+        {
+            for (std::size_t i = 0, k = 0; i < n; i += m, ++k)
+            {
+                p_3[k] = 0;
+                const std::size_t ii_max = std::min(n - i, m);
+                for (std::size_t ii = 0; ii < ii_max; ++ii)
+                {
+                    p_3[k] += in[i + ii];
+                }
+            } 
+        }
+    }
+
     ////////////////////////////////////////////////////////////////////////////////////
     // SPECIALIZATIONS: fixed precision 16 bit
     ////////////////////////////////////////////////////////////////////////////////////
@@ -845,7 +901,43 @@ namespace FP_NAMESPACE
     template <>
     struct fp<double>::format<0, 15>
     {
+        #if (FP_MAX_UINT16 == 0xFFFFU)
         using type = std::uint16_t;
+        #else
+        using type = std::int16_t;
+        #endif
+
+        static constexpr type max_uint = FP_MAX_UINT16;
+
+        static inline std::size_t memory_footprint_bytes(const std::size_t n)
+        {
+            if (n == 0)
+            {
+                return 0;
+            }
+            else
+            {
+                return (2 * sizeof(double) + (n * sizeof(type)));
+            }
+        }
+
+        static inline std::size_t memory_footprint_elements(const std::size_t n)
+        {
+            return memory_footprint_bytes(n) / sizeof(type);
+        }
+    };
+
+    template <>
+    template <>
+    struct fp<float>::format<0, 15>
+    {
+        #if (FP_MAX_UINT16 == 0xFFFFU)
+        using type = std::uint16_t;
+        #else
+        using type = std::int16_t;
+        #endif
+
+        static constexpr type max_uint = FP_MAX_UINT16;
 
         static inline std::size_t memory_footprint_bytes(const std::size_t n)
         {
@@ -865,6 +957,132 @@ namespace FP_NAMESPACE
         }
     };
 
+    ////////////////////////////////////////////////////////////////////////////////////
+    // SPECIALIZATIONS: fixed precision 8 bit
+    ////////////////////////////////////////////////////////////////////////////////////
+    template <>
+    template <>
+    struct fp<double>::format<0, 7>
+    {
+        #if (FP_MAX_UINT8 == 0xFFU)
+        using type = std::uint8_t;
+        #elif (FP_MAX_UINT8 == 0x7FU)
+        using type = std::int8_t;
+        #else
+        static_assert(false, "error: invalid FP_MAX_UINT8 value");
+        #endif
+
+        static constexpr type max_uint = FP_MAX_UINT8;
+
+        static inline std::size_t memory_footprint_bytes(const std::size_t n)
+        {
+            if (n == 0)
+            {
+                return 0;
+            }
+            else
+            {
+                return (2 * sizeof(double) + (n * sizeof(type)));
+            }
+        }
+
+        static inline std::size_t memory_footprint_elements(const std::size_t n)
+        {
+            return memory_footprint_bytes(n) / sizeof(type);
+        }
+    };
+
+    template <>
+    template <>
+    struct fp<float>::format<0, 7>
+    {
+        #if (FP_MAX_UINT8 == 0xFFU)
+        using type = std::uint8_t;
+        #elif (FP_MAX_UINT8 == 0x7FU)
+        using type = std::int8_t;
+        #else
+        static_assert(false, "error: invalid FP_MAX_UINT8 value");
+        #endif
+
+        static constexpr type max_uint = FP_MAX_UINT8;
+
+        static inline std::size_t memory_footprint_bytes(const std::size_t n)
+        {
+            if (n == 0)
+            {
+                return 0;
+            }
+            else
+            {
+                return (2 * sizeof(float) + (n * sizeof(type)));
+            }
+        }
+
+        static inline std::size_t memory_footprint_elements(const std::size_t n)
+        {
+            return memory_footprint_bytes(n) / sizeof(type);
+        }
+    };
+
+    template <typename T, typename TT, typename X = typename std::enable_if<!(std::is_same<TT, typename fp<T>::template format<0, 15>::type>::value) && !(std::is_same<TT, typename fp<T>::template format<0, 7>::type>::value)>::type>
+    static void recode_fixed_point(const fp2int conversion, TT* out, const T* in, const std::size_t n, const std::size_t m = 1, T* p_1 = nullptr, T* p_2 = nullptr, T* p_3 = nullptr, const X* dummy = nullptr)
+    {
+        ; // no implementation
+    }
+
+    template <typename T>
+    static void recode_fixed_point(const fp2int conversion, typename fp<T>::template format<0, 15>::type* out, const T* in, const std::size_t n, const std::size_t m = 1, T* p_1 = nullptr, T* p_2 = nullptr, T* p_3 = nullptr)
+    {
+        if (n == 0)
+        {
+            return;
+        }
+
+        #if (FP_MAX_UINT16 == 0xFFFFU)
+        // unsigned integer conversion
+        const T minimum = scan_min(in, n);
+        const T maximum = scan_max(in, n);
+        #else
+        // signed or unsigned integer conversion
+        const T minimum = (conversion == fp2int::signed_conversion ? 0 : scan_min(in, n));
+        const T maximum = (conversion == fp2int::signed_conversion ? scan_absmax(in, n) : scan_max(in, n));
+        #endif
+
+        const T a = minimum;
+        const T b = fp<T>::template format<0, 15>::max_uint / (maximum - a);
+    
+        recode_fixed_point_kernel(out, in, n, m, a, b, p_1, p_2, p_3);
+    }
+
+    template <typename T>
+    static void recode_fixed_point(const fp2int conversion, typename fp<T>::template format<0, 7>::type* out, const T* in, const std::size_t n, const std::size_t m = 1, T* p_1 = nullptr, T* p_2 = nullptr, T* p_3 = nullptr)
+    {
+        if (n == 0)
+        {
+            return;
+        }
+    
+        #if (FP_MAX_UINT8 == 0xFFU)
+        // unsigned integer conversion
+        const T minimum = scan_min(in, n);
+        const T maximum = scan_max(in, n);
+        #elif (FP_MAX_UINT8 == 0x7FU)
+        // signed or unsigned integer conversion
+        const T minimum = (conversion == fp2int::signed_conversion ? 0 : scan_min(in, n));
+        const T maximum = (conversion == fp2int::signed_conversion ? scan_absmax(in, n) : scan_max(in, n));
+        #else
+        static_assert(false, "error: invalid FP_MAX_UINT8 value");
+        #endif
+
+        const T a = minimum;
+        const T b = fp<T>::template format<0, 7>::max_uint / (maximum - a);
+    
+        recode_fixed_point_kernel(out, in, n, m, a, b, p_1, p_2, p_3);
+    }
+
+    ////////////////////////////////////////////////////////////////////////////////////
+    // SPECIALIZATIONS: fixed precision 16 bit
+    ////////////////////////////////////////////////////////////////////////////////////
     template <>
     template <>
     inline void fp<double>::compress<0, 15>(typename format<0, 15>::type* out, const double* in, const std::size_t n)
@@ -873,25 +1091,9 @@ namespace FP_NAMESPACE
         {
             return;
         }
-
-        float minimum = scan_min(in, n);
-        float maximum = scan_max(in, n);
-
-        const float a = minimum;
-        const float b = FP_MAX_UINT16 / (maximum - a);
-
-        float* fptr_out = reinterpret_cast<float*>(out);
-        fptr_out[0] = a;
-        fptr_out[1] = 1.0F / b;
-
-        using out_t = typename format<0, 15>::type;
-        out_t* ptr_out = reinterpret_cast<out_t*>(&fptr_out[2]);
         
-        #pragma omp simd
-        for (std::size_t i = 0; i < n; ++i)
-        {
-            ptr_out[i] = (static_cast<float>(in[i]) - a) * b;
-        }
+        // default conversion scheme: unsigned
+        recode_fixed_point(fp2int::unsigned_conversion, out, in, n);
     }
 
     template <>
@@ -903,9 +1105,9 @@ namespace FP_NAMESPACE
             return;
         }
 
-        const float* fptr_in = reinterpret_cast<const float*>(in);
-        const float a = fptr_in[0];
-        const float b = fptr_in[1];
+        const double* fptr_in = reinterpret_cast<const double*>(in);
+        const double a = fptr_in[0];
+        const double b = fptr_in[1];
 
         using in_t = typename format<0, 15>::type;
         const in_t* ptr_in = reinterpret_cast<const in_t*>(&fptr_in[2]);
@@ -913,38 +1115,9 @@ namespace FP_NAMESPACE
         #pragma omp simd
         for (std::size_t i = 0; i < n; ++i)
         {
-            const float tmp = ptr_in[i];
-            out[i] = tmp * b + a;
+            out[i] = ptr_in[i] * b + a;
         }
     }
-
-    template <>
-    template <>
-    struct fp<float>::format<0, 15>
-    {
-        using type = std::uint16_t;
-
-        static constexpr std::size_t pack_bytes = 2 * 32;
-
-        static constexpr std::size_t pack_size = 1 * 16;
-
-        static inline std::size_t memory_footprint_bytes(const std::size_t n)
-        {
-            if (n == 0)
-            {
-                return 0;
-            }
-            else
-            {
-                return (2 * sizeof(float) + (n * sizeof(type)));
-            }
-        }
-
-        static inline std::size_t memory_footprint_elements(const std::size_t n)
-        {
-            return memory_footprint_bytes(n) / sizeof(type);
-        }
-    };
 
     template <>
     template <>
@@ -954,25 +1127,9 @@ namespace FP_NAMESPACE
         {
             return;
         }
-
-        float minimum = scan_min(in, n);
-        float maximum = scan_max(in, n);
-
-        const float a = minimum;
-        const float b = FP_MAX_UINT16 / (maximum - a);
-
-        float* fptr_out = reinterpret_cast<float*>(out);
-        fptr_out[0] = a;
-        fptr_out[1] = 1.0F / b;
-
-        using out_t = typename format<0, 15>::type;
-        out_t* ptr_out = reinterpret_cast<out_t*>(&fptr_out[2]);
-
-        #pragma omp simd
-        for (std::size_t i = 0; i < n; ++i)
-        {
-            ptr_out[i] = (in[i] - a) * b;
-        }
+        
+        // default conversion scheme: unsigned
+        recode_fixed_point(fp2int::unsigned_conversion, out, in, n);
     }
 
     template <>
@@ -1003,30 +1160,6 @@ namespace FP_NAMESPACE
     ////////////////////////////////////////////////////////////////////////////////////
     template <>
     template <>
-    struct fp<double>::format<0, 7>
-    {
-        using type = std::uint8_t;
-
-        static inline std::size_t memory_footprint_bytes(const std::size_t n)
-        {
-            if (n == 0)
-            {
-                return 0;
-            }
-            else
-            {
-                return (2 * sizeof(float) + (n * sizeof(type)));
-            }
-        }
-
-        static inline std::size_t memory_footprint_elements(const std::size_t n)
-        {
-            return memory_footprint_bytes(n) / sizeof(type);
-        }
-    };
-
-    template <>
-    template <>
     inline void fp<double>::compress<0, 7>(typename format<0, 7>::type* out, const double* in, const std::size_t n)
     {
         if (n == 0)
@@ -1034,54 +1167,8 @@ namespace FP_NAMESPACE
             return;
         }
 
-        float minimum = scan_min(in, n);
-        float maximum = scan_max(in, n);
-
-        const float a = minimum;
-        const float b = FP_MAX_UINT8 / (maximum - a);
-
-        float* fptr_out = reinterpret_cast<float*>(out);
-        fptr_out[0] = a;
-        fptr_out[1] = 1.0F / b;
-
-        using out_t = typename format<0, 7>::type;
-        out_t* ptr_out = reinterpret_cast<out_t*>(&fptr_out[2]);
-        
-        #if defined(FP_USE_INTRINSICS) && (defined(__AVX2__) || defined(__AVX512F__))
-        constexpr std::size_t chunk_size = 32;
-        const std::size_t n_max = (FP_MAX_UINT8 == 0xFFU ? (n / chunk_size) * chunk_size : 0);
-        if (n_max > 0)
-        {            
-            for (std::size_t i = 0; i < n_max; i += chunk_size)
-            {
-                __m256 v256_in_1 = _mm256_insertf128_ps(_mm256_castps128_ps256(_mm256_cvtpd_ps(_mm256_loadu_pd(reinterpret_cast<const double*>(&in[i + 0])))),
-                                                        _mm256_cvtpd_ps(_mm256_loadu_pd(reinterpret_cast<const double*>(&in[i + 4]))), 1);
-                __m256 v256_in_2 = _mm256_insertf128_ps(_mm256_castps128_ps256(_mm256_cvtpd_ps(_mm256_loadu_pd(reinterpret_cast<const double*>(&in[i + 8])))),
-                                                        _mm256_cvtpd_ps(_mm256_loadu_pd(reinterpret_cast<const double*>(&in[i + 12]))), 1);
-                __m256 v256_in_3 = _mm256_insertf128_ps(_mm256_castps128_ps256(_mm256_cvtpd_ps(_mm256_loadu_pd(reinterpret_cast<const double*>(&in[i + 16])))),
-                                                        _mm256_cvtpd_ps(_mm256_loadu_pd(reinterpret_cast<const double*>(&in[i + 20]))), 1);
-                __m256 v256_in_4 = _mm256_insertf128_ps(_mm256_castps128_ps256(_mm256_cvtpd_ps(_mm256_loadu_pd(reinterpret_cast<const double*>(&in[i + 24])))),
-                                                        _mm256_cvtpd_ps(_mm256_loadu_pd(reinterpret_cast<const double*>(&in[i + 28]))), 1);
-
-                __m256 v256_unpacked_1 = _mm256_mul_ps(_mm256_sub_ps(v256_in_1, _mm256_set1_ps(a)), _mm256_set1_ps(b));
-                __m256 v256_unpacked_2 = _mm256_mul_ps(_mm256_sub_ps(v256_in_2, _mm256_set1_ps(a)), _mm256_set1_ps(b));
-                __m256 v256_unpacked_3 = _mm256_mul_ps(_mm256_sub_ps(v256_in_3, _mm256_set1_ps(a)), _mm256_set1_ps(b));
-                __m256 v256_unpacked_4 = _mm256_mul_ps(_mm256_sub_ps(v256_in_4, _mm256_set1_ps(a)), _mm256_set1_ps(b));
-
-                __m256i v256_packedlo = _mm256_packus_epi32(_mm256_cvtps_epi32(v256_unpacked_1), _mm256_cvtps_epi32(v256_unpacked_2));
-                __m256i v256_packedhi = _mm256_packus_epi32(_mm256_cvtps_epi32(v256_unpacked_3), _mm256_cvtps_epi32(v256_unpacked_4));
-                _mm256_storeu_si256(reinterpret_cast<__m256i*>(&ptr_out[i]), _mm256_packus_epi16(v256_packedlo, v256_packedhi));
-            }
-        }
-        #else
-        const std::size_t n_max = 0;
-        #endif
-
-        #pragma omp simd
-        for (std::size_t i = n_max; i < n; ++i)
-        {
-            ptr_out[i] = (static_cast<float>(in[i]) - a) * b;
-        }
+        // default conversion scheme: unsigned
+        recode_fixed_point(fp2int::unsigned_conversion, out, in, n);
     }
 
     template <>
@@ -1092,75 +1179,20 @@ namespace FP_NAMESPACE
         {
             return;
         }
-
-        const float* fptr_in = reinterpret_cast<const float*>(in);
-        const float a = fptr_in[0];
-        const float b = fptr_in[1];
+        
+        const double* fptr_in = reinterpret_cast<const double*>(in);
+        const double a = fptr_in[0];
+        const double b = fptr_in[1];
 
         using in_t = typename format<0, 7>::type;
         const in_t* ptr_in = reinterpret_cast<const in_t*>(&fptr_in[2]);
 
-        #if defined(FP_USE_INTRINSICS) && (defined(__AVX2__) || defined(__AVX512F__))
-        constexpr std::size_t chunk_size = 32;
-        const std::size_t n_max = (FP_MAX_UINT8 == 0xFFU ? (n / chunk_size) * chunk_size : 0);
-        if (n_max > 0)
-        {
-            for (std::size_t i = 0; i < n_max; i += chunk_size)
-            {
-                __m256i v256_packed = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(&ptr_in[i]));
-                __m256i v256_unpacked_lo = _mm256_unpacklo_epi8(v256_packed, _mm256_setzero_si256());
-                __m256i v256_unpacked_hi = _mm256_unpackhi_epi8(v256_packed, _mm256_setzero_si256());
-                
-                __m256i v256_unpacked[4];
-                v256_unpacked[0] = _mm256_unpacklo_epi16(v256_unpacked_lo, _mm256_setzero_si256());
-                v256_unpacked[1] = _mm256_unpackhi_epi16(v256_unpacked_lo, _mm256_setzero_si256());
-                v256_unpacked[2] = _mm256_unpacklo_epi16(v256_unpacked_hi, _mm256_setzero_si256());
-                v256_unpacked[3] = _mm256_unpackhi_epi16(v256_unpacked_hi, _mm256_setzero_si256());
-                
-                for (std::size_t ii = 0; ii < 4; ++ii)
-                {
-                    __m256d tmp_1 = _mm256_fmadd_pd(_mm256_cvtepi32_pd(_mm256_extracti128_si256(v256_unpacked[ii], 0)), _mm256_set1_pd(b), _mm256_set1_pd(a));
-                    __m256d tmp_2 = _mm256_fmadd_pd(_mm256_cvtepi32_pd(_mm256_extracti128_si256(v256_unpacked[ii], 1)), _mm256_set1_pd(b), _mm256_set1_pd(a));
-                    _mm256_storeu_pd(reinterpret_cast<double*>(&out[i + ii * 8 + 0]), tmp_1);
-                    _mm256_storeu_pd(reinterpret_cast<double*>(&out[i + ii * 8 + 4]), tmp_2);
-                }
-            }
-        }
-        #else
-        const std::size_t n_max = 0;
-        #endif
-
         #pragma omp simd
-        for (std::size_t i = n_max; i < n; ++i)
+        for (std::size_t i = 0; i < n; ++i)
         {
-            const float tmp = ptr_in[i];
-            out[i] = tmp * b + a;
+            out[i] = ptr_in[i] * b + a;
         }
     }
-
-    template <>
-    template <>
-    struct fp<float>::format<0, 7>
-    {
-        using type = std::uint8_t;
-
-        static inline std::size_t memory_footprint_bytes(const std::size_t n)
-        {
-            if (n == 0)
-            {
-                return 0;
-            }
-            else
-            {
-                return (2 * sizeof(float) + (n * sizeof(type)));
-            }
-        }
-
-        static inline std::size_t memory_footprint_elements(const std::size_t n)
-        {
-            return memory_footprint_bytes(n) / sizeof(type);
-        }
-    };
 
     template <>
     template <>
@@ -1171,50 +1203,8 @@ namespace FP_NAMESPACE
             return;
         }
 
-        float minimum = scan_min(in, n);
-        float maximum = scan_max(in, n);
-
-        const float a = minimum;
-        const float b = FP_MAX_UINT8 / (maximum - a);
-
-        float* fptr_out = reinterpret_cast<float*>(out);
-        fptr_out[0] = a;
-        fptr_out[1] = 1.0F / b;
-
-        using out_t = typename format<0, 7>::type;
-        out_t* ptr_out = reinterpret_cast<out_t*>(&fptr_out[2]);
-
-        #if defined(FP_USE_INTRINSICS) && (defined(__AVX2__) || defined(__AVX512F__))
-        constexpr std::size_t chunk_size = 32;
-        const std::size_t n_max = (FP_MAX_UINT8 == 0xFFU ? (n / chunk_size) * chunk_size : 0);
-        if (n_max > 0)
-        {
-            for (std::size_t i = 0; i < n_max; i += chunk_size)
-            {
-                __m256 v256_in_1 = _mm256_loadu_ps(reinterpret_cast<const float*>(&in[i + 0]));
-                __m256 v256_in_2 = _mm256_loadu_ps(reinterpret_cast<const float*>(&in[i + 8]));
-                __m256 v256_in_3 = _mm256_loadu_ps(reinterpret_cast<const float*>(&in[i + 16]));
-                __m256 v256_in_4 = _mm256_loadu_ps(reinterpret_cast<const float*>(&in[i + 24]));
-
-                __m256 v256_unpacked_1 = _mm256_mul_ps(_mm256_sub_ps(v256_in_1, _mm256_set1_ps(a)), _mm256_set1_ps(b));
-                __m256 v256_unpacked_2 = _mm256_mul_ps(_mm256_sub_ps(v256_in_2, _mm256_set1_ps(a)), _mm256_set1_ps(b));
-                __m256 v256_unpacked_3 = _mm256_mul_ps(_mm256_sub_ps(v256_in_3, _mm256_set1_ps(a)), _mm256_set1_ps(b));
-                __m256 v256_unpacked_4 = _mm256_mul_ps(_mm256_sub_ps(v256_in_4, _mm256_set1_ps(a)), _mm256_set1_ps(b));
-
-                __m256i v256_packedlo = _mm256_packus_epi32(_mm256_cvtps_epi32(v256_unpacked_1), _mm256_cvtps_epi32(v256_unpacked_2));
-                __m256i v256_packedhi = _mm256_packus_epi32(_mm256_cvtps_epi32(v256_unpacked_3), _mm256_cvtps_epi32(v256_unpacked_4));
-                _mm256_storeu_si256(reinterpret_cast<__m256i*>(&ptr_out[i]), _mm256_packus_epi16(v256_packedlo, v256_packedhi));
-            }
-        }
-        #else
-        const std::size_t n_max = 0;
-        #endif
-
-        #pragma omp simd
-        for (std::size_t i = n_max; i < n; ++i)
-        {
-            ptr_out[i] = (in[i] - a) * b;
-        }
+        // default conversion scheme: unsigned
+        recode_fixed_point(fp2int::unsigned_conversion, out, in, n);
     }
 
     template <>
@@ -1232,40 +1222,11 @@ namespace FP_NAMESPACE
 
         using in_t = typename format<0, 7>::type;
         const in_t* ptr_in = reinterpret_cast<const in_t*>(&fptr_in[2]);
-        
-        #if defined(FP_USE_INTRINSICS) && (defined(__AVX2__) || defined(__AVX512F__))
-        constexpr std::size_t chunk_size = 32;
-        const std::size_t n_max = (FP_MAX_UINT8 == 0xFFU ? (n / chunk_size) * chunk_size : 0);
-        if (n_max > 0)
-        {
-            for (std::size_t i = 0; i < n_max; i += chunk_size)
-            {
-                __m256i v256_packed = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(&ptr_in[i]));
-                __m256i v256_unpacked_lo = _mm256_unpacklo_epi8(v256_packed, _mm256_setzero_si256());
-                __m256i v256_unpacked_hi = _mm256_unpackhi_epi8(v256_packed, _mm256_setzero_si256());
-                
-                __m256i v256_unpacked[4];
-                v256_unpacked[0] = _mm256_unpacklo_epi16(v256_unpacked_lo, _mm256_setzero_si256());
-                v256_unpacked[1] = _mm256_unpackhi_epi16(v256_unpacked_lo, _mm256_setzero_si256());
-                v256_unpacked[2] = _mm256_unpacklo_epi16(v256_unpacked_hi, _mm256_setzero_si256());
-                v256_unpacked[3] = _mm256_unpackhi_epi16(v256_unpacked_hi, _mm256_setzero_si256());
-                
-                for (std::size_t ii = 0; ii < 4; ++ii)
-                {
-                    __m256 tmp_1 = _mm256_fmadd_ps(_mm256_cvtepi32_ps(v256_unpacked[ii]), _mm256_set1_ps(b), _mm256_set1_ps(a));
-                    _mm256_storeu_ps(reinterpret_cast<float*>(&out[i + ii * 8]), tmp_1);
-                }
-            }
-        }
-        #else
-        const std::size_t n_max = 0;
-        #endif
 
         #pragma omp simd
-        for (std::size_t i = n_max; i < n; ++i)
+        for (std::size_t i = 0; i < n; ++i)
         {
-            const float tmp = ptr_in[i];
-            out[i] = tmp * b + a;
+            out[i] = ptr_in[i] * b + a;
         } 
     }
 
@@ -1292,7 +1253,6 @@ namespace FP_NAMESPACE
             using type = float;
         };
     }
-
 }
 
 #endif

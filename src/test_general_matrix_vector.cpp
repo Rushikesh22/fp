@@ -24,6 +24,7 @@ constexpr std::size_t bs_default = 32;
 #if defined(BENCHMARK)
 constexpr std::size_t warmup = 5;
 constexpr std::size_t measurement = 10;
+constexpr bool transpose_benchmark = true;
 #else
 constexpr std::size_t warmup = 0;
 constexpr std::size_t measurement = 1;
@@ -77,19 +78,20 @@ int main(int argc, char** argv)
             a[k][i] = 0.9 + 0.2 * drand48();
         }
 
-        x[k].reserve(n);
-        for (std::size_t i = 0; i < n; ++i)
-        {
-            x[k][i] = 0.9 + 0.2 * drand48();
-        }
-
         std::array<std::size_t, 2> extent({m, n});
         const std::size_t lda = (L == fw::blas::matrix_layout::rowmajor ? n : m);
         a_compressed.emplace_back(a[k], extent, lda, bs);
 
-        y_ref[k].reserve(m);
-        y[k].reserve(m);
-        for (std::size_t i = 0; i < m; ++i)
+        const std::size_t mn = std::max(m, n);
+        x[k].reserve(mn);
+        for (std::size_t i = 0; i < mn; ++i)
+        {
+            x[k][i] = 0.9 + 0.2 * drand48();
+        }
+
+	    y_ref[k].reserve(mn);
+        y[k].reserve(mn);
+        for (std::size_t i = 0; i < mn; ++i)
         {
             y_ref[k][i] = 0.0;
             y[k][i] = 0.0;
@@ -100,7 +102,7 @@ int main(int argc, char** argv)
     // parameters for the matrix vector multiplication
     const real_t alpha = static_cast<real_t>(1.0);
     const real_t beta = static_cast<real_t>(0.0);
-    const bool transpose = false;
+    const bool transpose = transpose_benchmark;
     kernel(alpha, beta, transpose, m, n, a, a_compressed, x, y_ref, y, use_blas);
     #else
     {
@@ -108,7 +110,6 @@ int main(int argc, char** argv)
         const real_t beta = static_cast<real_t>(0.0);
         const bool transpose = false;
         kernel(alpha, beta, transpose, m, n, a, a_compressed, x, y_ref, y, use_blas);
-        if (m == n)
         {
             const bool transpose = true;
             kernel(alpha, beta, transpose, m, n, a, a_compressed, x, y_ref, y, use_blas);
@@ -119,7 +120,6 @@ int main(int argc, char** argv)
         const real_t beta = static_cast<real_t>(0.0);
         const bool transpose = false;
         kernel(alpha, beta, transpose, m, n, a, a_compressed, x, y_ref, y, use_blas);
-        if (m == n)
         {
             const bool transpose = true;
             kernel(alpha, beta, transpose, m, n, a, a_compressed, x, y_ref, y, use_blas);
@@ -130,7 +130,6 @@ int main(int argc, char** argv)
         const real_t beta = static_cast<real_t>(-0.5);
         const bool transpose = false;
         kernel(alpha, beta, transpose, m, n, a, a_compressed, x, y_ref, y, use_blas);
-        if (m == n)
         {
             const bool transpose = true;
             kernel(alpha, beta, transpose, m, n, a, a_compressed, x, y_ref, y, use_blas);
@@ -141,7 +140,6 @@ int main(int argc, char** argv)
         const real_t beta = static_cast<real_t>(0.0);
         const bool transpose = false;
         kernel(alpha, beta, transpose, m, n, a, a_compressed, x, y_ref, y, use_blas);
-        if (m == n)
         {
             const bool transpose = true;
             kernel(alpha, beta, transpose, m, n, a, a_compressed, x, y_ref, y, use_blas);
@@ -152,7 +150,6 @@ int main(int argc, char** argv)
         const real_t beta = static_cast<real_t>(0.0);
         const bool transpose = false;
         kernel(alpha, beta, transpose, m, n, a, a_compressed, x, y_ref, y, use_blas);
-        if (m == n)
         {
             const bool transpose = true;
             kernel(alpha, beta, transpose, m, n, a, a_compressed, x, y_ref, y, use_blas);
@@ -163,7 +160,6 @@ int main(int argc, char** argv)
         const real_t beta = static_cast<real_t>(1.1);
         const bool transpose = false;
         kernel(alpha, beta, transpose, m, n, a, a_compressed, x, y_ref, y, use_blas);
-        if (m == n)
         {
             const bool transpose = true;
             kernel(alpha, beta, transpose, m, n, a, a_compressed, x, y_ref, y, use_blas);
@@ -171,10 +167,6 @@ int main(int argc, char** argv)
     }
     #endif
 
-#if defined(PROFILING)
-    a_compressed[0].print_profile();    
-#endif
-    
     return 0;
 }
 

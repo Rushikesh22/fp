@@ -16,7 +16,7 @@
 
 #if defined(FP_MKL_INTEGER_GEMM_AVAILABLE)
 #include <mkl.h>
-#define FP_MAX_UINT16 0x7FFFU
+#define FP_MAX_UINT16 0x7FFU
 #define FP_MAX_UINT8 0x7FU
 #endif
 
@@ -258,35 +258,6 @@ namespace FP_NAMESPACE
                 }
             }
 
-            #if defined(FP_MKL_INTEGER_GEMM_AVAILABLE)
-            static void make_8bit_fixed_point(const T* in, MKL_INT8* out, const std::size_t n, const std::size_t bs, T& p_1, T* p_2 = nullptr)
-            {
-                T in_absmax = f_0;
-                for (std::size_t i = 0; i < n; ++i)
-                {
-                    in_absmax = std::max(std::abs(in[i]), in_absmax);
-                }
-                p_1 = 0x7F / in_absmax;
-                for (std::size_t i = 0; i < n; ++i)
-                {
-                    out[i] = p_1 * in[i];
-                }
-
-                if (p_2 != nullptr)
-                {
-                    for (std::size_t i = 0, k = 0; i < n; i += bs, ++k)
-                    {
-                        p_2[k] = f_0;
-                        const std::size_t ii_max = std::min(n - i, bs);
-                        for (std::size_t ii = 0; ii < ii_max; ++ii)
-                        {
-                            p_2[k] += in[i + ii];
-                        }
-                    }
-                }
-            }
-            #endif
-
     public:
 
             // (default) block size
@@ -458,15 +429,15 @@ namespace FP_NAMESPACE
                     alignas(alignment) T buffer_a[bs * bs];
 
                     #if defined(FP_MKL_INTEGER_GEMM_AVAILABLE)
-                    std::vector<MKL_INT8> i8x(0);
-                    alignas(alignment) MKL_INT i32y[bs];
-                    T rescale_p_1;
+                    std::vector<fp_type> ix(0);
+                    alignas(alignment) std::int32_t iy[bs];
+                    T dummy, rescale_p_1;
                     std::vector<T> rescale_p_2(0);
-                    if (BE == 0 && BM == 7)
+                    if ((BE == 0 && BM == 7) || (BE == 0 && BM == 15))
                     {
-                        i8x.reserve(transpose ? m : n);
+                        ix.reserve(transpose ? m : n);
                         rescale_p_2.reserve((transpose ? m : n) / bs + 1);
-                        make_8bit_fixed_point(&x[0], &i8x[0], (transpose ? m : n), bs, rescale_p_1, &rescale_p_2[0]);
+                        recode_fixed_point(fp2int::signed_conversion, &ix[0], &x[0], (transpose ? m : n), bs, &dummy, &rescale_p_1, &rescale_p_2[0]);
                     }
                     #endif
 
@@ -481,12 +452,12 @@ namespace FP_NAMESPACE
                             const std::size_t nn = std::min(n - i, bs);
 
                             #if defined(FP_MKL_INTEGER_GEMM_AVAILABLE)
-                            if (BE == 0 && BM == 7)
+                            if ((BE == 0 && BM == 7) || (BE == 0 && BM == 15))
                             {
-                                const float* fptr = reinterpret_cast<const float*>(&compressed_data[k]);
+                                const T* fptr = reinterpret_cast<const T*>(&compressed_data[k]);
                                 const T rescale_p_3 = fptr[0];
                                 const T rescale_p_4 = f_1 / fptr[1];
-                                const MKL_INT8* i8a = reinterpret_cast<const MKL_INT8*>(&fptr[2]);
+                                const fp_type* ia = reinterpret_cast<const fp_type*>(&fptr[2]);
 
                                 // move on to the next block  and prefetch data
                                 k += ((n - i) < bs ? num_elements_b : k_inc);
@@ -501,13 +472,13 @@ namespace FP_NAMESPACE
                                 const std::size_t src_idx = (transpose ? j : i);
                                 const std::size_t dst_idx = (transpose ? i : j);
                                 // the following gemm call uses alpha=1 internally
-                                gemv_8bit(L, transpose, mm, nn, &i8a[0], &i8x[src_idx], &i32y[0]);
+                                gemv(L, transpose, mm, nn, &ia[0], &ix[src_idx], &iy[0]);
                                 // ..finalize gemm call: rescaling
-                                const T a = f_1 / (rescale_p_1 * rescale_p_4);
+                                const T a = rescale_p_1 / rescale_p_4;
                                 const T b = rescale_p_2[src_idx / bs] * rescale_p_3;
                                 for (std::size_t jj = 0; jj < (transpose ? nn : mm); ++jj)
                                 {
-                                    y[dst_idx + jj] += alpha * (i32y[jj] * a + b);
+                                    y[dst_idx + jj] += alpha * (iy[jj] * a + b);
                                 }
                             }
                             else                            
@@ -840,15 +811,15 @@ namespace FP_NAMESPACE
                     alignas(alignment) T buffer_y[bs];
 
                     #if defined(FP_MKL_INTEGER_GEMM_AVAILABLE)
-                    std::vector<MKL_INT8> i8x(0);
-                    alignas(alignment) MKL_INT i32y[bs];
-                    T rescale_p_1;
+                    std::vector<fp_type> ix(0);
+                    alignas(alignment) std::int32_t iy[bs];
+                    T dummy, rescale_p_1;
                     std::vector<T> rescale_p_2(0);
-                    if (BE == 0 && BM == 7)
+                    if ((BE == 0 && BM == 7) || (BE == 0 && BM == 15))
                     {
-                        i8x.reserve(n);
+                        ix.reserve(n);
                         rescale_p_2.reserve(n / bs + 1);
-                        matrix<T, L, BE, BM>::make_8bit_fixed_point(&x[0], &i8x[0], n, bs, rescale_p_1, &rescale_p_2[0]);
+                        recode_fixed_point(fp2int::signed_conversion, &ix[0], &x[0], n, bs, &dummy, &rescale_p_1, &rescale_p_2[0]);
                     }
                     #endif
                     
@@ -921,12 +892,12 @@ namespace FP_NAMESPACE
                             else
                             {
                                 #if defined(FP_MKL_INTEGER_GEMM_AVAILABLE)
-                                if (BE == 0 && BM == 7)
+                                if ((BE == 0 && BM == 7) || (BE == 0 && BM == 15))
                                 {
-                                    const float* fptr = reinterpret_cast<const float*>(&compressed_data[k]);
+                                    const T* fptr = reinterpret_cast<const T*>(&compressed_data[k]);
                                     const T rescale_p_3 = fptr[0];
                                     const T rescale_p_4 = f_1 / fptr[1];
-                                    const MKL_INT8* i8a = reinterpret_cast<const MKL_INT8*>(&fptr[2]);
+                                    const fp_type* ia = reinterpret_cast<const fp_type*>(&fptr[2]);
 
                                     // move to the next block and prefetch data
                                     const std::size_t ij = (MT == triangular_matrix_type::upper ? i : j);
@@ -939,13 +910,13 @@ namespace FP_NAMESPACE
                                     const std::size_t src_idx = (transpose ? j : i);
                                     const std::size_t dst_idx = (transpose ? i : j);
                                     // the following gemm call uses alpha=1 internally
-                                    gemv_8bit(L, transpose, mm, nn, &i8a[0], &i8x[src_idx], &i32y[0]);
+                                    gemv(L, transpose, mm, nn, &ia[0], &ix[src_idx], &iy[0]);
                                     // ..finalize gemm call: rescaling
-                                    const T a = f_1 / (rescale_p_1 * rescale_p_4);
+                                    const T a = rescale_p_1 / rescale_p_4;
                                     const T b = rescale_p_2[src_idx / bs] * rescale_p_3;
                                     for (std::size_t jj = 0; jj < (transpose ? nn : mm); ++jj)
                                     {
-                                        y[dst_idx + jj] += alpha * (i32y[jj] * a + b);
+                                        y[dst_idx + jj] += alpha * (iy[jj] * a + b);
                                     }
                                 }
                                 else                            
@@ -991,15 +962,15 @@ namespace FP_NAMESPACE
                     alignas(alignment) T buffer_a[bs * bs];
 
                     #if defined(FP_MKL_INTEGER_GEMM_AVAILABLE)
-                    std::vector<MKL_INT8> i8x(0);
-                    alignas(alignment) MKL_INT i32y[bs];
-                    T rescale_p_1;
+                    std::vector<fp_type> ix(0);
+                    alignas(alignment) std::int32_t iy[bs];
+                    T dummy, rescale_p_1;
                     std::vector<T> rescale_p_2(0);
-                    if (BE == 0 && BM == 7)
+                    if ((BE == 0 && BM == 7) || (BE == 0 && BM == 15))
                     {
-                        i8x.reserve(n);
+                        ix.reserve(n);
                         rescale_p_2.reserve(n / bs + 1);
-                        matrix<T, L, BE, BM>::make_8bit_fixed_point(&x[0], &i8x[0], n, bs, rescale_p_1, &rescale_p_2[0]);
+                        recode_fixed_point(fp2int::signed_conversion, &ix[0], &x[0], n, bs, &dummy, &rescale_p_1, &rescale_p_2[0]);
                     }
                     #endif
 
@@ -1036,12 +1007,12 @@ namespace FP_NAMESPACE
                             else
                             {
                                 #if defined(FP_MKL_INTEGER_GEMM_AVAILABLE)
-                                if (BE == 0 && BM == 7)
+                                if ((BE == 0 && BM == 7) || (BE == 0 && BM == 15))
                                 {
-                                    const float* fptr = reinterpret_cast<const float*>(&compressed_data[k]);
+                                    const T* fptr = reinterpret_cast<const T*>(&compressed_data[k]);
                                     const T rescale_p_3 = fptr[0];
                                     const T rescale_p_4 = f_1 / fptr[1];
-                                    const MKL_INT8* i8a = reinterpret_cast<const MKL_INT8*>(&fptr[2]);
+                                    const fp_type* ia = reinterpret_cast<const fp_type*>(&fptr[2]);
 
                                     // move to the next block and prefetch data
                                     const std::size_t ij = (MT == triangular_matrix_type::upper ? i : j);
@@ -1053,25 +1024,25 @@ namespace FP_NAMESPACE
                                     // integer gemm : (1 x k) * (k x n) -> (1 x n)
                                     //
                                     // the following gemm call uses alpha=1 internally
-                                    gemv_8bit(L, false, mm, nn, &i8a[0], &i8x[i], &i32y[0]);
+                                    gemv(L, false, mm, nn, &ia[0], &ix[i], &iy[0]);
                                     {
                                         // ..finalize gemm call: rescaling
-                                        const T a = f_1 / (rescale_p_1 * rescale_p_4);
+                                        const T a = rescale_p_1 / rescale_p_4;
                                         const T b = rescale_p_2[i / bs] * rescale_p_3;
                                         for (std::size_t jj = 0; jj < mm; ++jj)
                                         {
-                                            y[j + jj] += alpha * (i32y[jj] * a + b);
+                                            y[j + jj] += alpha * (iy[jj] * a + b);
                                         }
                                     }
                                     // the following gemm call uses alpha=1 internally
-                                    gemv_8bit(L, true, mm, nn, &i8a[0], &i8x[j], &i32y[0]);
+                                    gemv(L, true, mm, nn, &ia[0], &ix[j], &iy[0]);
                                     {
                                         // ..finalize gemm call: rescaling
-                                        const T a = f_1 / (rescale_p_1 * rescale_p_4);
+                                        const T a = rescale_p_1 / rescale_p_4;
                                         const T b = rescale_p_2[j / bs] * rescale_p_3;
                                         for (std::size_t ii = 0; ii < nn; ++ii)
                                         {
-                                            y[i + ii] += alpha * (i32y[ii] * a + b);
+                                            y[i + ii] += alpha * (iy[ii] * a + b);
                                         }
                                     }
                                 }
@@ -1118,8 +1089,8 @@ namespace FP_NAMESPACE
                     alignas(alignment) T buffer_x[bs];
 
                     #if defined(FP_MKL_INTEGER_GEMM_AVAILABLE)
-                    alignas(alignment) MKL_INT i32x[bs];
-                    alignas(alignment) MKL_INT8 i8y[bs];
+                    alignas(alignment) std::int32_t ix[bs];
+                    alignas(alignment) fp_type iy[bs];
                     #endif
 
                     if ((transpose && MT == triangular_matrix_type::upper) ||
@@ -1140,13 +1111,13 @@ namespace FP_NAMESPACE
 
                                 // apply general matrix vector multiplication
                                 #if defined(FP_MKL_INTEGER_GEMM_AVAILABLE)
-                                if (BE == 0 && BM == 7)
+                                if ((BE == 0 && BM == 7) || (BE == 0 && BM == 15))
                                 {
                                     const std::size_t k = (transpose ? get_offset(MT, bi, bj) : get_offset(MT, bj, bi));
-                                    const float* fptr = reinterpret_cast<const float*>(&compressed_data[k]);
+                                    const T* fptr = reinterpret_cast<const T*>(&compressed_data[k]);
                                     const T rescale_p_3 = fptr[0];
                                     const T rescale_p_4 = f_1 / fptr[1];
-                                    const MKL_INT8* i8a = reinterpret_cast<const MKL_INT8*>(&fptr[2]);
+                                    const fp_type* ia = reinterpret_cast<const fp_type*>(&fptr[2]);
 
                                     #if defined(FP_PREFETCH)
                                     // prefetch the next block
@@ -1160,22 +1131,22 @@ namespace FP_NAMESPACE
                                     // integer gemm : (1 x k) * (k x n) -> (1 x n)
                                     //
                                     // the following gemm call uses alpha=1 internally
-                                    T rescale_p_1, rescale_p_2;
-                                    matrix<T, L, BE, BM>::make_8bit_fixed_point(&y[bi * bs], &i8y[0], nn, bs, rescale_p_1, &rescale_p_2);
+                                    T rescale_dummy, rescale_p_1, rescale_p_2;
+                                    recode_fixed_point(fp2int::signed_conversion, &iy[0], &y[bi * bs], nn, bs, &rescale_dummy, &rescale_p_1, &rescale_p_2);
                                     if (transpose)
                                     {
-                                        gemv_8bit(L, true, nn, mm, &i8a[0], &i8y[0], &i32x[0]);
+                                        gemv(L, true, nn, mm, &ia[0], &iy[0], &ix[0]);
                                     }
                                     else
                                     {
-                                        gemv_8bit(L, false, mm, nn, &i8a[0], &i8y[0], &i32x[0]);
+                                        gemv(L, false, mm, nn, &ia[0], &iy[0], &ix[0]);
                                     }                                
                                     // ..finalize gemm call: rescaling
-                                    const T a = f_1 / (rescale_p_1 * rescale_p_4);
+                                    const T a = rescale_p_1 / rescale_p_4;
                                     const T b = rescale_p_2 * rescale_p_3;
                                     for (std::size_t ii = 0; ii < mm; ++ii)
                                     {
-                                        buffer_x[ii] += (i32x[ii] * a + b);
+                                        buffer_x[ii] += (ix[ii] * a + b);
                                     }
                                 }
                                 else                            
@@ -1238,13 +1209,13 @@ namespace FP_NAMESPACE
                                 const std::size_t nn = std::min(n - bi * bs, bs);
 
                                 #if defined(FP_MKL_INTEGER_GEMM_AVAILABLE)
-                                if (BE == 0 && BM == 7)
+                                if ((BE == 0 && BM == 7) || (BE == 0 && BM == 15))
                                 {
                                     const std::size_t k = (transpose ? get_offset(MT, bi, bj) : get_offset(MT, bj, bi));
-                                    const float* fptr = reinterpret_cast<const float*>(&compressed_data[k]);
+                                    const T* fptr = reinterpret_cast<const T*>(&compressed_data[k]);
                                     const T rescale_p_3 = fptr[0];
                                     const T rescale_p_4 = f_1 / fptr[1];
-                                    const MKL_INT8* i8a = reinterpret_cast<const MKL_INT8*>(&fptr[2]);
+                                    const fp_type* ia = reinterpret_cast<const fp_type*>(&fptr[2]);
 
                                     #if defined(FP_PREFETCH)
                                     // prefetch the next block
@@ -1258,22 +1229,22 @@ namespace FP_NAMESPACE
                                     // integer gemm : (1 x k) * (k x n) -> (1 x n)
                                     //
                                     // the following gemm call uses alpha=1 internally
-                                    T rescale_p_1, rescale_p_2;
-                                    matrix<T, L, BE, BM>::make_8bit_fixed_point(&y[bi * bs], &i8y[0], nn, bs, rescale_p_1, &rescale_p_2);
+                                    T rescale_dummy, rescale_p_1, rescale_p_2;
+                                    recode_fixed_point(fp2int::signed_conversion, &iy[0], &y[bi * bs], nn, bs, &rescale_dummy, &rescale_p_1, &rescale_p_2);
                                     if (transpose)
                                     {
-                                        gemv_8bit(L, true, nn, mm, &i8a[0], &i8y[0], &i32x[0]);
+                                        gemv(L, true, nn, mm, &ia[0], &iy[0], &ix[0]);
                                     }
                                     else
                                     {
-                                        gemv_8bit(L, false, mm, nn, &i8a[0], &i8y[0], &i32x[0]);
+                                        gemv(L, false, mm, nn, &ia[0], &iy[0], &ix[0]);
                                     }
                                     // ..finalize gemm call: rescaling
-                                    const T a = f_1 / (rescale_p_1 * rescale_p_4);
+                                    const T a = rescale_p_1 / rescale_p_4;
                                     const T b = rescale_p_2 * rescale_p_3;
                                     for (std::size_t ii = 0; ii < mm; ++ii)
                                     {
-                                        buffer_x[ii] += (i32x[ii] * a + b);
+                                        buffer_x[ii] += (ix[ii] * a + b);
                                     }
                                 }
                                 else                            
