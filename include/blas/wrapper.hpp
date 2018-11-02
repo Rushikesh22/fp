@@ -9,6 +9,10 @@
 #include <cstdint>
 #include <cblas.h>
 
+#if defined(FP_MKL_INTEGER_GEMM_AVAILABLE)
+#include <mkl.h>
+#endif
+
 #if defined(FP_USE_LIBXSMM)
 #include <libxsmm.h>
 #endif

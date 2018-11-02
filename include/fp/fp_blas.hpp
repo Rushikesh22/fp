@@ -15,7 +15,6 @@
 #include <omp.h>
 
 #if defined(FP_MKL_INTEGER_GEMM_AVAILABLE)
-#include <mkl.h>
 #define FP_MAX_UINT16 0x7FFU
 #define FP_MAX_UINT8 0x7FU
 #endif
