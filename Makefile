@@ -1,27 +1,30 @@
 CXX = g++
 LD = g++
 
-MKLROOT = $(HOME)/opt/intel/compilers_and_libraries_2018.0.082/linux/mkl
-INTELROOT = $(MKLROOT)/../compiler
-INC = -I./include -I./include/blas -I./src/include -I$(HOME)/opt/gnu-7.3.0/boost/include -I$(MKLROOT)/include -I$(INTELROOT)/include
-CXXFLAGS = -O2 -std=c++14 -mavx2 -m64 -mfma -fopenmp -fopenmp-simd -ftree-vectorize -ffast-math -fopt-info-vec-optimized -fpermissive $(INC)
-LDFLAGS = -O2 -L$(MKLROOT)/lib/intel64 -Wl,--no-as-needed -lmkl_intel_lp64 -lmkl_sequential -lmkl_core -L$(INTELROOT)/lib/intel64 -liomp5 -lpthread -lm -ldl
+INC = -I./include -I./include/blas -I./src/include -I$(HOME)/opt/gnu-7.3.0/boost/include -I/usr/include/mkl
+CXXFLAGS = -O3 -std=c++14 -mavx2 -m64 -mfma -fopenmp -fopenmp-simd -ftree-vectorize -ffast-math -fopt-info-vec-optimized -fpermissive $(INC)
+LDFLAGS = -O2 -L/usr/lib/x86_64-linux-gnu -Wl,--no-as-needed -lmkl_intel_lp64 -lmkl_sequential -lmkl_core -liomp5 -lpthread -lm -ldl
 
 CXXFLAGS += -DBENCHMARK
 CXXFLAGS += -DFP_RESCALE
 #CXXFLAGS += -D_BE=11 -D_BM=52
 #CXXFLAGS += -D_BE=8 -D_BM=23
 #CXXFLAGS += -D_BE=8 -D_BM=7
-#CXXFLAGS += -D_BE=4 -D_BM=3
-#CXXFLAGS += -D_BE=0 -D_BM=15
-#CXXFLAGS += -D_BE=0 -D_BM=11
-CXXFLAGS += -D_BE=0 -D_BM=7
-CXXFLAGS += -DUPPER_MATRIX
+CXXFLAGS += -D_BE=0 -D_BM=15
+#CXXFLAGS += -D_BE=0 -D_BM=7
+CXXFLAGS += -DTHREAD_PINNING
+CXXFLAGS += -DFP_GEMV_TO_GEMM
+#CXXFLAGS += -D_COLMAJOR
+CXXFLAGS += -DFP_MKL_INTEGER_GEMM_AVAILABLE
+
+#CXXFLAGS += -DFP_USE_LIBXSMM -I$(LIBXSMMROOT)/include
+#LDFLAGS += -L$(LIBXSMMROOT)/lib -lxsmm
 
 #all: test_fp
 #all: test_general_matrix_vector
 #all: test_triangular_matrix_vector
 all: test_triangular_solve
+#all: test_general_matrix_vector test_triangular_matrix_vector test_triangular_solve
 
 ###
 test_fp: bin/test_fp.x
