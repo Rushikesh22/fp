@@ -294,14 +294,14 @@ void kernel(const real_t alpha, const bool transpose,
     real_t v_2 = x[0][0];
     for (std::size_t k = 0; k < a.size(); ++k)
     {
-        for (std::size_t i = 0; i < n; ++i)
+        for (std::size_t j = 0; j < n; ++j)
         {
-            const double tmp = std::abs((x[k][i] - x_ref[k][i]) / x_ref[k][i]);
+            const double tmp = std::abs((x[k][j] - x_ref[k][j]) / x_ref[k][j]);
             if (tmp > dev)
             {
                 dev = tmp;
-                v_1 = x_ref[k][i];
-                v_2 = x[k][i];
+                v_1 = x_ref[k][j];
+                v_2 = x[k][j];
             }
         }
     }

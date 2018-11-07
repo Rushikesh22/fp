@@ -37,7 +37,7 @@ namespace FP_NAMESPACE
             const T __beta, T* __C, const std::size_t __ldc);
         
         template <>
-        void gemm<double>(const CBLAS_LAYOUT __Order, const CBLAS_TRANSPOSE __TransA, const CBLAS_TRANSPOSE __TransB,
+        inline void gemm<double>(const CBLAS_LAYOUT __Order, const CBLAS_TRANSPOSE __TransA, const CBLAS_TRANSPOSE __TransB,
             const std::size_t __M, const std::size_t __N, const std::size_t __K, const double __alpha, const double* __A, const std::size_t __lda, 
             const double* __B, const std::size_t __ldb, 
             const double __beta, double* __C, const std::size_t __ldc) 
@@ -69,7 +69,7 @@ namespace FP_NAMESPACE
         }
 
         template <>
-        void gemm<float>(const CBLAS_LAYOUT __Order, const CBLAS_TRANSPOSE __TransA, const CBLAS_TRANSPOSE __TransB,
+        inline void gemm<float>(const CBLAS_LAYOUT __Order, const CBLAS_TRANSPOSE __TransA, const CBLAS_TRANSPOSE __TransB,
             const std::size_t __M, const std::size_t __N, const std::size_t __K, const float __alpha, const float* __A, const std::size_t __lda, 
             const float* __B, const std::size_t __ldb, 
             const float __beta, float* __C, const std::size_t __ldc) 
@@ -110,7 +110,7 @@ namespace FP_NAMESPACE
             const T __beta, T* __Y, const std::size_t __incY);
         
         template <>
-        void gemv<double>(const CBLAS_LAYOUT __Order, const CBLAS_TRANSPOSE __TransA, 
+        inline void gemv<double>(const CBLAS_LAYOUT __Order, const CBLAS_TRANSPOSE __TransA, 
             const std::size_t __M, const std::size_t __N, const double __alpha, const double* __A, const std::size_t __lda, 
             const double* __X, const std::size_t __incX, 
             const double __beta, double* __Y, const std::size_t __incY) 
@@ -136,7 +136,7 @@ namespace FP_NAMESPACE
         }
 
         template <>
-        void gemv<float>(const CBLAS_LAYOUT __Order, const CBLAS_TRANSPOSE __TransA, 
+        inline void gemv<float>(const CBLAS_LAYOUT __Order, const CBLAS_TRANSPOSE __TransA, 
             const std::size_t __M, const std::size_t __N, const float __alpha, const float* __A, const std::size_t __lda, 
             const float* __X, const std::size_t __incX, 
             const float __beta, float* __Y, const std::size_t __incY) 
@@ -166,7 +166,7 @@ namespace FP_NAMESPACE
         static void gemv(const matrix_layout layout, const bool transpose, const std::size_t m, const std::size_t n, const T* a, const T* x, std::int32_t* y);
 
         template <>
-        void gemv<std::int16_t>(const matrix_layout layout, const bool transpose, const std::size_t m, const std::size_t n, const std::int16_t* a, const std::int16_t* x, std::int32_t* y)
+        inline void gemv<std::int16_t>(const matrix_layout layout, const bool transpose, const std::size_t m, const std::size_t n, const std::int16_t* a, const std::int16_t* x, std::int32_t* y)
         {
             const std::size_t M = 1;
             const std::size_t N = (transpose ? n : m);
@@ -185,7 +185,7 @@ namespace FP_NAMESPACE
         }
 
         template <>
-        void gemv<std::int8_t>(const matrix_layout layout, const bool transpose, const std::size_t m, const std::size_t n, const std::int8_t* a, const std::int8_t* x, std::int32_t* y)
+        inline void gemv<std::int8_t>(const matrix_layout layout, const bool transpose, const std::size_t m, const std::size_t n, const std::int8_t* a, const std::int8_t* x, std::int32_t* y)
         {
             const std::size_t M = 1;
             const std::size_t N = (transpose ? n : m);
@@ -194,13 +194,80 @@ namespace FP_NAMESPACE
             const std::size_t ldx = (layout == matrix_layout::rowmajor ? 1 : (transpose ? m : n));
             const std::size_t ldy = (layout == matrix_layout::rowmajor ? (transpose ? n : m) : 1);
             const std::int32_t dummy = 0;
-            
+
             cblas_gemm_s8u8s32((layout == matrix_layout::rowmajor ? CblasRowMajor : CblasColMajor), CblasTrans, (transpose ? CblasNoTrans : CblasTrans), CblasFixOffset,
                       M, N, K,
                 1.0F, reinterpret_cast<const MKL_INT8*>(&x[0]), ldx, 0, 
                       reinterpret_cast<const MKL_INT8*>(&a[0]), lda, 0,
                 0.0F, reinterpret_cast<MKL_INT*>(&y[0]), ldy,
                       reinterpret_cast<const MKL_INT*>(&dummy));
+        }
+        #endif
+        
+        #if defined(FP_INTEGER_GEMV)
+        template <typename T_1, typename T_2>
+        static void gemv(const matrix_layout layout, const bool transpose, const std::size_t m, const std::size_t n, const T_1* a, const T_2* x, T_2* y)
+        {
+            if (transpose)
+            {
+                if (layout == matrix_layout::rowmajor)
+                {
+                    for (std::size_t j = 0; j < n; ++j)
+                    {
+                        y[j] = 0;
+                    }
+
+                    for (std::size_t i = 0; i < m; ++i)
+                    {
+                        for (std::size_t j = 0; j < n; ++j)
+                        {
+                            y[j] += a[i * n + j] * x[i];
+                        }
+                    }
+                }
+                else
+                {
+                    for (std::size_t j = 0; j < n; ++j)
+                    {
+                        T_2 tmp = 0;
+                        for (std::size_t i = 0; i < m; ++i)
+                        {
+                            tmp += a[j * m + i] * x[i];
+                        }
+                        y[j] = tmp;
+                    }
+                }
+            }
+            else
+            {
+                if (layout == matrix_layout::rowmajor)
+                {
+                    for (std::size_t j = 0; j < m; ++j)
+                    {
+                        T_2 tmp = 0;
+                        for (std::size_t i = 0; i < n; ++i)
+                        {
+                            tmp += a[j * n + i] * x[i];
+                        }
+                        y[j] = tmp;
+                    }
+                }
+                else
+                {
+                    for (std::size_t j = 0; j < m; ++j)
+                    {
+                        y[j] = 0;
+                    }
+
+                    for (std::size_t i = 0; i < n; ++i)
+                    {
+                        for (std::size_t j = 0; j < m; ++j)
+                        {
+                            y[j] += a[i * m + j] * x[i];
+                        }
+                    }
+                }
+            }
         }
         #endif
 
@@ -210,14 +277,14 @@ namespace FP_NAMESPACE
             const std::size_t __N, const T* __Ap, T* __X, const std::size_t __incX);
 
         template <>
-        void tpmv<double>(const CBLAS_LAYOUT __Order, const CBLAS_UPLO __Uplo, const CBLAS_TRANSPOSE __TransA, const CBLAS_DIAG __Diag,
+        inline void tpmv<double>(const CBLAS_LAYOUT __Order, const CBLAS_UPLO __Uplo, const CBLAS_TRANSPOSE __TransA, const CBLAS_DIAG __Diag,
             const std::size_t __N, const double* __Ap, double* __X, const std::size_t __incX)
         {
             cblas_dtpmv(__Order, __Uplo, __TransA, __Diag, __N, __Ap, __X, __incX);
         }
 
         template <>
-        void tpmv<float>(const CBLAS_LAYOUT __Order, const CBLAS_UPLO __Uplo, const CBLAS_TRANSPOSE __TransA, const CBLAS_DIAG __Diag,
+        inline void tpmv<float>(const CBLAS_LAYOUT __Order, const CBLAS_UPLO __Uplo, const CBLAS_TRANSPOSE __TransA, const CBLAS_DIAG __Diag,
             const std::size_t __N, const float* __Ap, float* __X, const std::size_t __incX)
         {
             cblas_stpmv(__Order, __Uplo, __TransA, __Diag, __N, __Ap, __X, __incX);
@@ -231,7 +298,7 @@ namespace FP_NAMESPACE
             const T __beta, T* __Y, const std::size_t __incY);
 
         template <>
-        void spmv<double>(const CBLAS_LAYOUT __Order, const CBLAS_UPLO __Uplo,
+        inline void spmv<double>(const CBLAS_LAYOUT __Order, const CBLAS_UPLO __Uplo,
             const std::size_t __N, const double __alpha, const double* __Ap,
             const double* __X, const std::size_t __incX,
             const double __beta, double* __Y, const std::size_t __incY)
@@ -240,7 +307,7 @@ namespace FP_NAMESPACE
         }
 
         template <>
-        void spmv<float>(const CBLAS_LAYOUT __Order, const CBLAS_UPLO __Uplo,
+        inline void spmv<float>(const CBLAS_LAYOUT __Order, const CBLAS_UPLO __Uplo,
             const std::size_t __N, const float __alpha, const float* __Ap,
             const float* __X, const std::size_t __incX,
             const float __beta, float* __Y, const std::size_t __incY)
@@ -254,14 +321,14 @@ namespace FP_NAMESPACE
             const std::size_t __N, const T* __Ap, T* __X, const std::size_t __incX);
 
         template <>
-        void tpsv<double>(const CBLAS_LAYOUT __Order, const CBLAS_UPLO __Uplo, const CBLAS_TRANSPOSE __TransA, const CBLAS_DIAG __Diag,
+        inline void tpsv<double>(const CBLAS_LAYOUT __Order, const CBLAS_UPLO __Uplo, const CBLAS_TRANSPOSE __TransA, const CBLAS_DIAG __Diag,
             const std::size_t __N, const double* __Ap, double* __X, const std::size_t __incX)
         {
             cblas_dtpsv(__Order, __Uplo, __TransA, __Diag, __N, __Ap, __X, __incX);
         }
 
         template <>
-        void tpsv<float>(const CBLAS_LAYOUT __Order, const CBLAS_UPLO __Uplo, const CBLAS_TRANSPOSE __TransA, const CBLAS_DIAG __Diag,
+        inline void tpsv<float>(const CBLAS_LAYOUT __Order, const CBLAS_UPLO __Uplo, const CBLAS_TRANSPOSE __TransA, const CBLAS_DIAG __Diag,
             const std::size_t __N, const float* __Ap, float* __X, const std::size_t __incX)
         {
             cblas_stpsv(__Order, __Uplo, __TransA, __Diag, __N, __Ap, __X, __incX);

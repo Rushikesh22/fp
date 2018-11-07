@@ -10,20 +10,21 @@ CXXFLAGS += -DFP_RESCALE
 #CXXFLAGS += -D_BE=11 -D_BM=52
 #CXXFLAGS += -D_BE=8 -D_BM=23
 #CXXFLAGS += -D_BE=8 -D_BM=7
-CXXFLAGS += -D_BE=0 -D_BM=15
+#CXXFLAGS += -D_BE=0 -D_BM=15
 #CXXFLAGS += -D_BE=0 -D_BM=7
 CXXFLAGS += -DTHREAD_PINNING
-CXXFLAGS += -DFP_GEMV_TO_GEMM
-#CXXFLAGS += -D_COLMAJOR
-CXXFLAGS += -DFP_MKL_INTEGER_GEMM_AVAILABLE
+#CXXFLAGS += -DFP_GEMV_TO_GEMM
+CXXFLAGS += -D_COLMAJOR
+CXXFLAGS += -DFP_INTEGER_GEMV
+#CXXFLAGS += -DFP_MKL_INTEGER_GEMM_AVAILABLE
 
 #CXXFLAGS += -DFP_USE_LIBXSMM -I$(LIBXSMMROOT)/include
 #LDFLAGS += -L$(LIBXSMMROOT)/lib -lxsmm
 
 #all: test_fp
 #all: test_general_matrix_vector
-#all: test_triangular_matrix_vector
-all: test_triangular_solve
+all: test_triangular_matrix_vector
+#all: test_triangular_solve
 #all: test_general_matrix_vector test_triangular_matrix_vector test_triangular_solve
 
 ###

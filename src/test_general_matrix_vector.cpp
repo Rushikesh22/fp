@@ -24,7 +24,7 @@ constexpr std::size_t bs_default = 32;
 #if defined(BENCHMARK)
 constexpr std::size_t warmup = 5;
 constexpr std::size_t measurement = 10;
-constexpr bool transpose_benchmark = true;
+constexpr bool transpose_benchmark = false;
 #else
 constexpr std::size_t warmup = 0;
 constexpr std::size_t measurement = 1;
@@ -268,14 +268,14 @@ void kernel(const real_t alpha, const real_t beta, const bool transpose,
     real_t v_2 = y[0][0];
     for (std::size_t k = 0; k < a.size(); ++k)
     {
-        for (std::size_t i = 0; i < m; ++i)
+        for (std::size_t j = 0; j < (transpose ? n : m); ++j)
         {
-            const double tmp = std::abs((y[k][i] - y_ref[k][i]) / y_ref[k][i]);
+            const double tmp = std::abs((y[k][j] - y_ref[k][j]) / y_ref[k][j]);
             if (tmp > dev)
             {
                 dev = tmp;
-                v_1 = y_ref[k][i];
-                v_2 = y[k][i];
+                v_1 = y_ref[k][j];
+                v_2 = y[k][j];
             }
         }
     }
