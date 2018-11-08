@@ -844,6 +844,168 @@ namespace FP_NAMESPACE
     ////////////////////////////////////////////////////////////////////////////////////
     enum class fp2int { signed_conversion = 0, unsigned_conversion = 1 };
 
+    #if defined(FP_USE_SIMD_INTRINSICS) && (defined(__AVX2__) || defined(__AVX512F__))
+    template <typename T, typename TT>
+    static void recode_simd_intrinsics(const T* in, TT* out, const std::size_t n, const double a = 0.0, const double b = 1.0);
+
+    template <>
+    inline void recode_simd_intrinsics<double, std::uint8_t>(const double* in, std::uint8_t* out, const std::size_t n, const double a, const double b)
+    {
+        constexpr std::size_t chunk_size = 32;
+        alignas(32) double buffer_in[chunk_size];
+        alignas(32) std::uint8_t buffer_out[chunk_size];
+
+        for (std::size_t i = 0; i < n; i += chunk_size)
+        {
+            const bool full_chunk = (std::min(n - i, chunk_size) == chunk_size ? true : false);
+            
+            if (!full_chunk)
+            {
+                for (std::size_t ii = 0; ii < (n - i); ++ii)
+                {
+                    buffer_in[ii] = in[i + ii];
+                }
+            }
+            
+            const double* ptr_in = (full_chunk ? &in[i] : &buffer_in[0]);
+
+            __m256 v256_in_1 = _mm256_insertf128_ps(_mm256_castps128_ps256(_mm256_cvtpd_ps(_mm256_loadu_pd(reinterpret_cast<const double*>(&ptr_in[0])))),
+                                                    _mm256_cvtpd_ps(_mm256_loadu_pd(reinterpret_cast<const double*>(&ptr_in[4]))), 1);
+            __m256 v256_in_2 = _mm256_insertf128_ps(_mm256_castps128_ps256(_mm256_cvtpd_ps(_mm256_loadu_pd(reinterpret_cast<const double*>(&ptr_in[8])))),
+                                                    _mm256_cvtpd_ps(_mm256_loadu_pd(reinterpret_cast<const double*>(&ptr_in[12]))), 1);
+            __m256 v256_in_3 = _mm256_insertf128_ps(_mm256_castps128_ps256(_mm256_cvtpd_ps(_mm256_loadu_pd(reinterpret_cast<const double*>(&ptr_in[16])))),
+                                                    _mm256_cvtpd_ps(_mm256_loadu_pd(reinterpret_cast<const double*>(&ptr_in[20]))), 1);
+            __m256 v256_in_4 = _mm256_insertf128_ps(_mm256_castps128_ps256(_mm256_cvtpd_ps(_mm256_loadu_pd(reinterpret_cast<const double*>(&ptr_in[24])))),
+                                                    _mm256_cvtpd_ps(_mm256_loadu_pd(reinterpret_cast<const double*>(&ptr_in[28]))), 1);
+
+            __m256 v256_unpacked_1 = _mm256_mul_ps(_mm256_sub_ps(v256_in_1, _mm256_set1_ps(a)), _mm256_set1_ps(b));
+            __m256 v256_unpacked_2 = _mm256_mul_ps(_mm256_sub_ps(v256_in_2, _mm256_set1_ps(a)), _mm256_set1_ps(b));
+            __m256 v256_unpacked_3 = _mm256_mul_ps(_mm256_sub_ps(v256_in_3, _mm256_set1_ps(a)), _mm256_set1_ps(b));
+            __m256 v256_unpacked_4 = _mm256_mul_ps(_mm256_sub_ps(v256_in_4, _mm256_set1_ps(a)), _mm256_set1_ps(b));
+
+            __m256i v256_packedlo = _mm256_packus_epi32(_mm256_cvtps_epi32(v256_unpacked_1), _mm256_cvtps_epi32(v256_unpacked_2));
+            __m256i v256_packedhi = _mm256_packus_epi32(_mm256_cvtps_epi32(v256_unpacked_3), _mm256_cvtps_epi32(v256_unpacked_4));
+            __m256i v256_packed = _mm256_permutevar8x32_epi32(_mm256_packus_epi16(v256_packedlo, v256_packedhi), _mm256_setr_epi32(0, 4, 1, 5, 2, 6, 3, 7));
+
+            if (full_chunk)
+            {
+                _mm256_storeu_si256(reinterpret_cast<__m256i*>(&out[i]), v256_packed);
+            }
+            else
+            {
+                _mm256_store_si256(reinterpret_cast<__m256i*>(&buffer_out[0]), v256_packed);
+                for (std::size_t ii = 0; ii < (n - i); ++ii)
+                {
+                    out[i + ii] = buffer_out[ii];
+                }
+            }
+        }
+    }
+
+    template <>
+    inline void recode_simd_intrinsics<std::uint8_t, double>(const std::uint8_t* in, double* out, const std::size_t n, const double a, const double b)
+    {
+        constexpr std::size_t chunk_size = 32;
+        alignas(32) double buffer_out[chunk_size];
+
+        for (std::size_t i = 0; i < n; i += chunk_size)
+        {
+            __m256i v256_packed = _mm256_permutevar8x32_epi32(_mm256_loadu_si256(reinterpret_cast<const __m256i*>(&in[i])), _mm256_setr_epi32(0, 2, 4, 6, 1, 3, 5, 7));
+            __m256i v256_unpacked_lo = _mm256_unpacklo_epi8(v256_packed, _mm256_setzero_si256());
+            __m256i v256_unpacked_hi = _mm256_unpackhi_epi8(v256_packed, _mm256_setzero_si256());
+
+            __m256i v256_unpacked[4];
+            v256_unpacked[0] = _mm256_unpacklo_epi16(v256_unpacked_lo, _mm256_setzero_si256());
+            v256_unpacked[1] = _mm256_unpackhi_epi16(v256_unpacked_lo, _mm256_setzero_si256());
+            v256_unpacked[2] = _mm256_unpacklo_epi16(v256_unpacked_hi, _mm256_setzero_si256());
+            v256_unpacked[3] = _mm256_unpackhi_epi16(v256_unpacked_hi, _mm256_setzero_si256());
+
+            const bool full_chunk = (std::min(n - i, chunk_size) == chunk_size ? true : false);
+            double* ptr_out = (full_chunk ? &out[i] : &buffer_out[0]);
+
+            for (std::size_t ii = 0; ii < 4; ++ii)
+            {
+                __m256d tmp_1 = _mm256_fmadd_pd(_mm256_cvtepi32_pd(_mm256_extracti128_si256(v256_unpacked[ii], 0)), _mm256_set1_pd(b), _mm256_set1_pd(a));
+                __m256d tmp_2 = _mm256_fmadd_pd(_mm256_cvtepi32_pd(_mm256_extracti128_si256(v256_unpacked[ii], 1)), _mm256_set1_pd(b), _mm256_set1_pd(a));
+                _mm256_storeu_pd(reinterpret_cast<double*>(&ptr_out[ii * 8 + 0]), tmp_1);
+                _mm256_storeu_pd(reinterpret_cast<double*>(&ptr_out[ii * 8 + 4]), tmp_2);
+            }
+
+            if (!full_chunk)
+            {
+                for (std::size_t ii = 0; ii < (n - i); ++ii)
+                {
+                    out[i + ii] = buffer_out[ii];
+                }
+            }
+        }
+    }
+
+    template <>
+    inline void recode_simd_intrinsics<std::uint8_t, std::int32_t>(const std::uint8_t* in, std::int32_t* out, const std::size_t n, const double a, const double b)
+    {
+        constexpr std::size_t chunk_size = 32;
+        alignas(32) std::int32_t buffer_out[chunk_size];
+
+        for (std::size_t i = 0; i < n; i += chunk_size)
+        {
+            __m256i v256_packed = _mm256_permutevar8x32_epi32(_mm256_loadu_si256(reinterpret_cast<const __m256i*>(&in[i])), _mm256_setr_epi32(0, 2, 4, 6, 1, 3, 5, 7));
+            __m256i v256_unpacked_lo = _mm256_unpacklo_epi8(v256_packed, _mm256_setzero_si256());
+            __m256i v256_unpacked_hi = _mm256_unpackhi_epi8(v256_packed, _mm256_setzero_si256());
+
+            __m256i v256_unpacked[4];
+            v256_unpacked[0] = _mm256_unpacklo_epi16(v256_unpacked_lo, _mm256_setzero_si256());
+            v256_unpacked[1] = _mm256_unpackhi_epi16(v256_unpacked_lo, _mm256_setzero_si256());
+            v256_unpacked[2] = _mm256_unpacklo_epi16(v256_unpacked_hi, _mm256_setzero_si256());
+            v256_unpacked[3] = _mm256_unpackhi_epi16(v256_unpacked_hi, _mm256_setzero_si256());
+
+            const bool full_chunk = (std::min(n - i, chunk_size) == chunk_size ? true : false);
+            std::int32_t* ptr_out = (full_chunk ? &out[i] : &buffer_out[0]);
+
+            _mm256_storeu_si256(reinterpret_cast<__m256i*>(&ptr_out[0]), v256_unpacked[0]);
+            _mm256_storeu_si256(reinterpret_cast<__m256i*>(&ptr_out[8]), v256_unpacked[1]);
+            _mm256_storeu_si256(reinterpret_cast<__m256i*>(&ptr_out[16]), v256_unpacked[2]);
+            _mm256_storeu_si256(reinterpret_cast<__m256i*>(&ptr_out[24]), v256_unpacked[3]);
+
+            if (!full_chunk)
+            {
+                for (std::size_t ii = 0; ii < (n - i); ++ii)
+                {
+                    out[i + ii] = buffer_out[ii];
+                }
+            }
+        }
+    }
+
+    template <>
+    inline void recode_simd_intrinsics<std::uint8_t, std::int16_t>(const std::uint8_t* in, std::int16_t* out, const std::size_t n, const double a, const double b)
+    {
+        constexpr std::size_t chunk_size = 32;
+        alignas(32) std::int16_t buffer_out[chunk_size];
+
+        for (std::size_t i = 0; i < n; i += chunk_size)
+        {
+            __m256i v256_packed = _mm256_permutevar8x32_epi32(_mm256_loadu_si256(reinterpret_cast<const __m256i*>(&in[i])), _mm256_setr_epi32(0, 1, 4, 5, 2, 3, 6, 7));
+            __m256i v256_unpacked_lo = _mm256_unpacklo_epi8(v256_packed, _mm256_setzero_si256());
+            __m256i v256_unpacked_hi = _mm256_unpackhi_epi8(v256_packed, _mm256_setzero_si256());
+
+            const bool full_chunk = (std::min(n - i, chunk_size) == chunk_size ? true : false);
+            std::int16_t* ptr_out = (full_chunk ? &out[i] : &buffer_out[0]);
+
+            _mm256_storeu_si256(reinterpret_cast<__m256i*>(&ptr_out[0]), v256_unpacked_lo);
+            _mm256_storeu_si256(reinterpret_cast<__m256i*>(&ptr_out[16]), v256_unpacked_hi);
+            
+            if (!full_chunk)
+            {
+                for (std::size_t ii = 0; ii < (n - i); ++ii)
+                {
+                    out[i + ii] = buffer_out[ii];
+                }
+            }
+        }
+    }
+    #endif
+
     template <typename T, typename TT>
     static void recode_fixed_point_kernel(TT* out, const T* in, const std::size_t n, const std::size_t m, const T a, const T b, T* p_1 = nullptr, T* p_2 = nullptr, T* p_3 = nullptr)
     {
@@ -873,11 +1035,21 @@ namespace FP_NAMESPACE
                 (*p_2) = 1 / b;
             }
         }
-
-        #pragma omp simd
-        for (std::size_t i = 0; i < n; ++i)
+        
+        #if defined(FP_USE_SIMD_INTRINSICS) && (defined(__AVX2__) || defined(__AVX512F__))
+        constexpr bool use_simd_intrinsics = std::is_same<TT, std::uint8_t>::value;
+        if (use_simd_intrinsics)
         {
-            ptr_out[i] = (in[i] - a) * b;
+            recode_simd_intrinsics<T, TT>(in, ptr_out, n, a, b);
+        }
+        else
+        #endif
+        {
+            #pragma omp simd
+            for (std::size_t i = 0; i < n; ++i)
+            {
+                ptr_out[i] = (in[i] - a) * b;
+            }
         }
 
         if (p_3 != nullptr)
@@ -982,7 +1154,12 @@ namespace FP_NAMESPACE
             }
             else
             {
+                #if defined(FP_USE_SIMD_INTRINSICS)
+                constexpr std::size_t chunk_size = 32;
+                return (2 * sizeof(double) + (((n + (chunk_size - 1)) / chunk_size) * chunk_size * sizeof(type)));
+                #else
                 return (2 * sizeof(double) + (n * sizeof(type)));
+                #endif
             }
         }
 
@@ -1187,10 +1364,20 @@ namespace FP_NAMESPACE
         using in_t = typename format<0, 7>::type;
         const in_t* ptr_in = reinterpret_cast<const in_t*>(&fptr_in[2]);
 
-        #pragma omp simd
-        for (std::size_t i = 0; i < n; ++i)
+        #if defined(FP_USE_SIMD_INTRINSICS) && (defined(__AVX2__) || defined(__AVX512F__))
+        constexpr bool use_simd_intrinsics = std::is_same<typename format<0, 7>::type, std::uint8_t>::value;
+        if (use_simd_intrinsics)
         {
-            out[i] = ptr_in[i] * b + a;
+            recode_simd_intrinsics<std::uint8_t, double>(ptr_in, out, n, a, b);
+        }
+        else
+        #endif
+        {
+            #pragma omp simd
+            for (std::size_t i = 0; i < n; ++i)
+            {
+                out[i] = ptr_in[i] * b + a;
+            }
         }
     }
 

@@ -206,65 +206,128 @@ namespace FP_NAMESPACE
         
         #if defined(FP_INTEGER_GEMV)
         template <typename T_1, typename T_2>
-        static void gemv(const matrix_layout layout, const bool transpose, const std::size_t m, const std::size_t n, const T_1* a, const T_2* x, T_2* y)
+        static void gemv(const matrix_layout layout, const bool transpose, const std::size_t m, const std::size_t n, const T_1* a, const T_2* x, T_2* y, const T_2 p_1 = 0.0, const T_2 p_2 = 1.0)
         {
-            if (transpose)
+            
+            if ((transpose && layout == matrix_layout::rowmajor) ||
+                (!transpose && layout == matrix_layout::colmajor))
             {
-                if (layout == matrix_layout::rowmajor)
-                {
-                    for (std::size_t j = 0; j < n; ++j)
-                    {
-                        y[j] = 0;
-                    }
+                const std::size_t N = (transpose ? n : m);
+                const std::size_t M = (transpose ? m : n);
 
-                    for (std::size_t i = 0; i < m; ++i)
+                for (std::size_t j = 0; j < N; ++j)
+                {
+                    y[j] = 0;
+                }
+
+                #if defined(FP_USE_SIMD_INTRINSICS) && (defined(__AVX2__) || defined(__AVX512F__))
+                constexpr bool use_simd_intrinsics = std::is_same<T_1, std::uint8_t>::value;
+                if (use_simd_intrinsics)
+                {
+                    constexpr std::size_t chunk_size = 32;
+                    constexpr std::size_t chunks = 4;
+                    if (N < (chunks * chunk_size))
                     {
-                        for (std::size_t j = 0; j < n; ++j)
+                        const std::size_t inc_i = (chunks * chunk_size + (N - 1)) / N;
+                        alignas(32) std::int16_t buffer_a[inc_i * N];
+                        for (std::size_t i = 0; i < M; i += inc_i)
                         {
-                            y[j] += a[i * n + j] * x[i];
-                        }
+                            const std::size_t ii_max = std::min(M - i, inc_i);
+                            recode_simd_intrinsics<T_1, std::int16_t>(&a[i * N], &buffer_a[0], ii_max * N);
+
+                            for (std::size_t ii = 0; ii < ii_max; ++ii)
+                            {
+                                for (std::size_t j = 0; j < N; ++j)
+                                {
+                                    y[j] += buffer_a[ii * N + j] * x[i + ii];
+                                }
+                            }
+                        }   
+                    }
+                    else
+                    {
+                        alignas(32) std::int16_t buffer_a[N];
+                        for (std::size_t i = 0; i < M; ++i)
+                        {
+                            recode_simd_intrinsics<T_1, std::int16_t>(&a[i * N], &buffer_a[0], N);
+
+                            for (std::size_t j = 0; j < N; ++j)
+                            {
+                                y[j] += buffer_a[j] * x[i];
+                            }
+                        }   
                     }
                 }
                 else
+                #endif
                 {
-                    for (std::size_t j = 0; j < n; ++j)
+                    for (std::size_t i = 0; i < M; ++i)
                     {
-                        T_2 tmp = 0;
-                        for (std::size_t i = 0; i < m; ++i)
+                        for (std::size_t j = 0; j < N; ++j)
                         {
-                            tmp += a[j * m + i] * x[i];
+                            y[j] += a[i * N + j] * x[i];
                         }
-                        y[j] = tmp;
                     }
                 }
             }
             else
             {
-                if (layout == matrix_layout::rowmajor)
+                const std::size_t N = (transpose ? n : m);
+                const std::size_t M = (transpose ? m : n);
+
+                #if defined(FP_USE_SIMD_INTRINSICS) && (defined(__AVX2__) || defined(__AVX512F__))
+                constexpr bool use_simd_intrinsics = std::is_same<T_1, std::uint8_t>::value;
+                if (use_simd_intrinsics)
                 {
-                    for (std::size_t j = 0; j < m; ++j)
+                    constexpr std::size_t chunk_size = 32;
+                    constexpr std::size_t chunks = 4;
+                    if (M < (chunks * chunk_size))
                     {
-                        T_2 tmp = 0;
-                        for (std::size_t i = 0; i < n; ++i)
+                        const std::size_t inc_j = (chunks * chunk_size + (M - 1)) / M;
+                        alignas(32) std::int16_t buffer_a[inc_j * M];
+                        for (std::size_t j = 0; j < N; j += inc_j)
                         {
-                            tmp += a[j * n + i] * x[i];
+                            const std::size_t jj_max = std::min(N - j, inc_j);
+                            recode_simd_intrinsics<T_1, std::int16_t>(&a[j * M], &buffer_a[0], jj_max * M);
+
+                            for (std::size_t jj = 0; jj < jj_max; ++jj)
+                            {
+                                T_2 tmp = 0;
+                                for (std::size_t i = 0; i < M; ++i)
+                                {
+                                    tmp += buffer_a[jj * M + i] * x[i];
+                                }
+                                y[j + jj] = tmp;
+                            }
+                        }   
+                    }
+                    else
+                    {
+                        alignas(32) std::int16_t buffer_a[M];
+                        for (std::size_t j = 0; j < N; ++j)
+                        {
+                            recode_simd_intrinsics<T_1, std::int16_t>(&a[j * M], &buffer_a[0], M);
+
+                            T_2 tmp = 0;
+                            for (std::size_t i = 0; i < M; ++i)
+                            {
+                                tmp += buffer_a[i] * x[i];
+                            }
+                            y[j] = tmp;
                         }
-                        y[j] = tmp;
                     }
                 }
                 else
+                #endif
                 {
-                    for (std::size_t j = 0; j < m; ++j)
+                    for (std::size_t j = 0; j < N; ++j)
                     {
-                        y[j] = 0;
-                    }
-
-                    for (std::size_t i = 0; i < n; ++i)
-                    {
-                        for (std::size_t j = 0; j < m; ++j)
+                        T_2 tmp = 0;
+                        for (std::size_t i = 0; i < M; ++i)
                         {
-                            y[j] += a[i * m + j] * x[i];
+                            tmp += a[j * M + i] * x[i];
                         }
+                        y[j] = tmp;
                     }
                 }
             }

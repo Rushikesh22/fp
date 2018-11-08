@@ -474,7 +474,7 @@ namespace FP_NAMESPACE
                             {
                                 const T* fptr = reinterpret_cast<const T*>(&compressed_data[k]);
                                 const T rescale_p_3 = fptr[0];
-                                const T rescale_p_4 = f_1 / fptr[1];
+                                const T rescale_p_4 = fptr[1];
                                 const fp_type* tmp_a = reinterpret_cast<const fp_type*>(&fptr[2]);
 
                                 // move on to the next block  and prefetch data
@@ -492,16 +492,23 @@ namespace FP_NAMESPACE
                                 // the following gemm call uses alpha=1 internally
                                 #if defined(FP_MKL_INTEGER_GEMM_AVAILABLE)
                                 gemv(L, transpose, mm, nn, &tmp_a[0], &tmp_x[src_idx], &tmp_y[0]);
-                                #else
-                                gemv(L, transpose, mm, nn, &tmp_a[0], &x[src_idx], &tmp_y[0]);
-                                #endif
                                 // ..finalize gemm call: rescaling
-                                const T a = rescale_p_1 / rescale_p_4;
+                                const T a = rescale_p_1 * rescale_p_4;
                                 const T b = rescale_p_2[src_idx / bs] * rescale_p_3;
                                 for (std::size_t jj = 0; jj < (transpose ? nn : mm); ++jj)
                                 {
                                     y[dst_idx + jj] += alpha * (tmp_y[jj] * a + b);
                                 }
+                                #else
+                                gemv(L, transpose, mm, nn, &tmp_a[0], &x[src_idx], &tmp_y[0]);
+                                // ..finalize gemm call: rescaling
+                                const T a = rescale_p_1 * rescale_p_4;
+                                const T b = rescale_p_2[src_idx / bs] * rescale_p_3;
+                                for (std::size_t jj = 0; jj < (transpose ? nn : mm); ++jj)
+                                {
+                                    y[dst_idx + jj] += alpha * (tmp_y[jj] * a + b);
+                                }
+                                #endif
                             }
                             else                            
                             #endif
@@ -936,7 +943,7 @@ namespace FP_NAMESPACE
                                 {
                                     const T* fptr = reinterpret_cast<const T*>(&compressed_data[k]);
                                     const T rescale_p_3 = fptr[0];
-                                    const T rescale_p_4 = f_1 / fptr[1];
+                                    const T rescale_p_4 = fptr[1];
                                     const fp_type* tmp_a = reinterpret_cast<const fp_type*>(&fptr[2]);
 
                                     // move to the next block and prefetch data
@@ -956,7 +963,7 @@ namespace FP_NAMESPACE
                                     gemv(L, transpose, mm, nn, &tmp_a[0], &x[src_idx], &tmp_y[0]);
                                     #endif
                                     // ..finalize gemm call: rescaling
-                                    const T a = rescale_p_1 / rescale_p_4;
+                                    const T a = rescale_p_1 * rescale_p_4;
                                     const T b = rescale_p_2[src_idx / bs] * rescale_p_3;
                                     for (std::size_t jj = 0; jj < (transpose ? nn : mm); ++jj)
                                     {
@@ -1073,7 +1080,7 @@ namespace FP_NAMESPACE
                                 {
                                     const T* fptr = reinterpret_cast<const T*>(&compressed_data[k]);
                                     const T rescale_p_3 = fptr[0];
-                                    const T rescale_p_4 = f_1 / fptr[1];
+                                    const T rescale_p_4 = fptr[1];
                                     const fp_type* tmp_a = reinterpret_cast<const fp_type*>(&fptr[2]);
 
                                     // move to the next block and prefetch data
@@ -1093,7 +1100,7 @@ namespace FP_NAMESPACE
                                     #endif
                                     {
                                         // ..finalize gemm call: rescaling
-                                        const T a = rescale_p_1 / rescale_p_4;
+                                        const T a = rescale_p_1 * rescale_p_4;
                                         const T b = rescale_p_2[i / bs] * rescale_p_3;
                                         for (std::size_t jj = 0; jj < mm; ++jj)
                                         {
@@ -1108,7 +1115,7 @@ namespace FP_NAMESPACE
                                     #endif
                                     {
                                         // ..finalize gemm call: rescaling
-                                        const T a = rescale_p_1 / rescale_p_4;
+                                        const T a = rescale_p_1 * rescale_p_4;
                                         const T b = rescale_p_2[j / bs] * rescale_p_3;
                                         for (std::size_t ii = 0; ii < nn; ++ii)
                                         {
@@ -1190,7 +1197,7 @@ namespace FP_NAMESPACE
                                     const std::size_t k = (transpose ? get_offset(MT, bi, bj) : get_offset(MT, bj, bi));
                                     const T* fptr = reinterpret_cast<const T*>(&compressed_data[k]);
                                     const T rescale_p_3 = fptr[0];
-                                    const T rescale_p_4 = f_1 / fptr[1];
+                                    const T rescale_p_4 = fptr[1];
                                     const fp_type* tmp_a = reinterpret_cast<const fp_type*>(&fptr[2]);
 
                                     #if defined(FP_PREFETCH)
@@ -1233,7 +1240,7 @@ namespace FP_NAMESPACE
                                     }
                                     #endif
                                     // ..finalize gemm call: rescaling
-                                    const T a = rescale_p_1 / rescale_p_4;
+                                    const T a = rescale_p_1 * rescale_p_4;
                                     const T b = rescale_p_2 * rescale_p_3;
                                     for (std::size_t ii = 0; ii < mm; ++ii)
                                     {
@@ -1305,7 +1312,7 @@ namespace FP_NAMESPACE
                                     const std::size_t k = (transpose ? get_offset(MT, bi, bj) : get_offset(MT, bj, bi));
                                     const T* fptr = reinterpret_cast<const T*>(&compressed_data[k]);
                                     const T rescale_p_3 = fptr[0];
-                                    const T rescale_p_4 = f_1 / fptr[1];
+                                    const T rescale_p_4 = fptr[1];
                                     const fp_type* tmp_a = reinterpret_cast<const fp_type*>(&fptr[2]);
 
                                     #if defined(FP_PREFETCH)
@@ -1348,7 +1355,7 @@ namespace FP_NAMESPACE
                                     }
                                     #endif
                                     // ..finalize gemm call: rescaling
-                                    const T a = rescale_p_1 / rescale_p_4;
+                                    const T a = rescale_p_1 * rescale_p_4;
                                     const T b = rescale_p_2 * rescale_p_3;
                                     for (std::size_t ii = 0; ii < mm; ++ii)
                                     {

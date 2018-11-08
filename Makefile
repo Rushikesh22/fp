@@ -5,18 +5,19 @@ INC = -I./include -I./include/blas -I./src/include -I$(HOME)/opt/gnu-7.3.0/boost
 CXXFLAGS = -O3 -std=c++14 -mavx2 -m64 -mfma -fopenmp -fopenmp-simd -ftree-vectorize -ffast-math -fopt-info-vec-optimized -fpermissive $(INC)
 LDFLAGS = -O2 -L/usr/lib/x86_64-linux-gnu -Wl,--no-as-needed -lmkl_intel_lp64 -lmkl_sequential -lmkl_core -liomp5 -lpthread -lm -ldl
 
-CXXFLAGS += -DBENCHMARK
+#CXXFLAGS += -DBENCHMARK
 CXXFLAGS += -DFP_RESCALE
 #CXXFLAGS += -D_BE=11 -D_BM=52
 #CXXFLAGS += -D_BE=8 -D_BM=23
 #CXXFLAGS += -D_BE=8 -D_BM=7
 #CXXFLAGS += -D_BE=0 -D_BM=15
-#CXXFLAGS += -D_BE=0 -D_BM=7
+CXXFLAGS += -D_BE=0 -D_BM=7
 CXXFLAGS += -DTHREAD_PINNING
 #CXXFLAGS += -DFP_GEMV_TO_GEMM
-CXXFLAGS += -D_COLMAJOR
+#CXXFLAGS += -D_COLMAJOR
 CXXFLAGS += -DFP_INTEGER_GEMV
 #CXXFLAGS += -DFP_MKL_INTEGER_GEMM_AVAILABLE
+CXXFLAGS += -DFP_USE_SIMD_INTRINSICS
 
 #CXXFLAGS += -DFP_USE_LIBXSMM -I$(LIBXSMMROOT)/include
 #LDFLAGS += -L$(LIBXSMMROOT)/lib -lxsmm
