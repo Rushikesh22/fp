@@ -181,7 +181,7 @@ namespace FP_NAMESPACE
             //! \param out pointer to packed output
             //! \param in pointer to input (only the lowest 'TB' bits of each 32-bit word are used for the packing)
             //! \param n number of 'TB'-bit words to be packed
-            static void pack(type* out, const std::uint32_t* in, const std::size_t n)
+            static void pack(const std::uint32_t* in, type* out, const std::size_t n)
             {
                 if (n == 0)
                 {
@@ -203,7 +203,7 @@ namespace FP_NAMESPACE
             //! \param out pointer to output
             //! \param in pointer to packed input
             //! \param n number of 'TB'-bit words to be unpacked
-            static void unpack(std::uint32_t* out, const type* in, const std::size_t n)
+            static void unpack(const type* in, std::uint32_t* out, const std::size_t n)
             {
                 if (n == 0)
                 {
@@ -335,7 +335,7 @@ namespace FP_NAMESPACE
         };        
 
         template <std::uint32_t BE, std::uint32_t BM, typename X = typename std::enable_if<!(default_case(BE, BM) && !special_case(BE, BM))>::type>
-        static void compress(typename format<BE, BM>::type* out, const T* in, const std::size_t n);
+        static void compress(const T* in, typename format<BE, BM>::type* out, const std::size_t n);
         
         //! \brief Compression (default case)
         //!
@@ -348,7 +348,7 @@ namespace FP_NAMESPACE
         //! \param in pointer to the input stream of IEEE-754 floating point numbers
         //! \param n length of the input stream
         template <std::uint32_t BE, std::uint32_t BM, typename X = typename std::enable_if<default_case(BE, BM) && !special_case(BE, BM)>::type>
-        static void compress(typename format<BE, BM>::type* out, const T* in, const std::size_t n, const X* ptr = nullptr)
+        static void compress(const T* in, typename format<BE, BM>::type* out, const std::size_t n, const X* ptr = nullptr)
         {
             if (n == 0)
             {
@@ -421,12 +421,12 @@ namespace FP_NAMESPACE
                 }
 
                 // pack the compressed floating point numbers in 'buffer'
-                implementation<1 + BE + BM>::pack(ptr_out, buffer, ii_max);
+                implementation<1 + BE + BM>::pack(buffer, ptr_out, ii_max);
             }
         }
 
         template <std::uint32_t BE, std::uint32_t BM, typename X = typename std::enable_if<!(default_case(BE, BM) && !special_case(BE, BM))>::type>
-        static void decompress(T* out, const typename format<BE, BM>::type* in, const std::size_t n);
+        static void decompress(const typename format<BE, BM>::type* in, T* out, const std::size_t n);
 
         //! \brief Decompression (default case)
         //!
@@ -436,7 +436,7 @@ namespace FP_NAMESPACE
         //! \param in pointer to the compressed input bit stream
         //! \param n length of the input stream
         template <std::uint32_t BE, std::uint32_t BM, typename X = typename std::enable_if<default_case(BE, BM) && !special_case(BE, BM)>::type>
-        static void decompress(T* out, const typename format<BE, BM>::type* in, const std::size_t n, const X* ptr = nullptr)
+        static void decompress(const typename format<BE, BM>::type* in, T* out, const std::size_t n, const X* ptr = nullptr)
         {
             if (n == 0)
             {
@@ -469,7 +469,7 @@ namespace FP_NAMESPACE
                 const std::size_t ii_max = std::min(n - i, pack_size);
 
                 // unpack the compressed floating point numbers into 'buffer'
-                implementation<1 + BE + BM>::unpack(buffer, ptr_in, ii_max);
+                implementation<1 + BE + BM>::unpack(ptr_in, buffer, ii_max);
 
                 // decompress all numbers individually
                 for (std::size_t ii = 0; ii < ii_max; ++ii)
@@ -549,7 +549,7 @@ namespace FP_NAMESPACE
 
     template <>
     template <>
-    inline void fp<double>::compress<11, 52>(typename fp<double>::format<11, 52>::type* out, const double* in, const std::size_t n)
+    inline void fp<double>::compress<11, 52>(const double* in, typename fp<double>::format<11, 52>::type* out, const std::size_t n)
     {
         if (n == 0)
         {
@@ -573,7 +573,7 @@ namespace FP_NAMESPACE
 
     template <>
     template <>
-    inline void fp<double>::decompress<11, 52>(double* out, const typename fp<double>::format<11, 52>::type* in, const std::size_t n)
+    inline void fp<double>::decompress<11, 52>(const typename fp<double>::format<11, 52>::type* in, double* out, const std::size_t n)
     {
         if (n == 0)
         {
@@ -619,7 +619,7 @@ namespace FP_NAMESPACE
 
     template <>
     template <>
-    inline void fp<float>::compress<8, 23>(typename fp<float>::format<8, 23>::type* out, const float* in, const std::size_t n)
+    inline void fp<float>::compress<8, 23>(const float* in, typename fp<float>::format<8, 23>::type* out, const std::size_t n)
     {
         if (n == 0)
         {
@@ -643,7 +643,7 @@ namespace FP_NAMESPACE
 
     template <>
     template <>
-    inline void fp<float>::decompress<8, 23>(float* out, const typename fp<float>::format<8, 23>::type* in, const std::size_t n)
+    inline void fp<float>::decompress<8, 23>(const typename fp<float>::format<8, 23>::type* in, float* out, const std::size_t n)
     {
         if (n == 0)
         {
@@ -689,7 +689,7 @@ namespace FP_NAMESPACE
 
     template <>
     template <>
-    inline void fp<double>::compress<8, 23>(typename fp<double>::format<8, 23>::type* out, const double* in, const std::size_t n)
+    inline void fp<double>::compress<8, 23>(const double* in, typename fp<double>::format<8, 23>::type* out, const std::size_t n)
     {
         if (n == 0)
         {
@@ -708,7 +708,7 @@ namespace FP_NAMESPACE
 
     template <>
     template <>
-    inline void fp<double>::decompress<8, 23>(double* out, const typename fp<double>::format<8, 23>::type* in, const std::size_t n)
+    inline void fp<double>::decompress<8, 23>(const typename fp<double>::format<8, 23>::type* in, double* out, const std::size_t n)
     {
         if (n == 0)
         {
@@ -748,7 +748,7 @@ namespace FP_NAMESPACE
 
     template <>
     template <>
-    inline void fp<double>::compress<8, 7>(typename format<8, 7>::type* out, const double* in, const std::size_t n)
+    inline void fp<double>::compress<8, 7>(const double* in, typename format<8, 7>::type* out, const std::size_t n)
     {
         if (n == 0)
         {
@@ -766,7 +766,7 @@ namespace FP_NAMESPACE
 
     template <>
     template <>
-    inline void fp<double>::decompress<8, 7>(double* out, const typename format<8, 7>::type* in, const std::size_t n)
+    inline void fp<double>::decompress<8, 7>(const typename format<8, 7>::type* in, double* out, const std::size_t n)
     {
         if (n == 0)
         {
@@ -800,7 +800,7 @@ namespace FP_NAMESPACE
 
     template <>
     template <>
-    inline void fp<float>::compress<8, 7>(typename format<8, 7>::type* out, const float* in, const std::size_t n)
+    inline void fp<float>::compress<8, 7>(const float* in, typename format<8, 7>::type* out, const std::size_t n)
     {
         if (n == 0)
         {
@@ -817,7 +817,7 @@ namespace FP_NAMESPACE
 
     template <>
     template <>
-    inline void fp<float>::decompress<8, 7>(float* out, const typename format<8, 7>::type* in, const std::size_t n)
+    inline void fp<float>::decompress<8, 7>(const typename format<8, 7>::type* in, float* out, const std::size_t n)
     {
         if (n == 0)
         {
@@ -837,7 +837,15 @@ namespace FP_NAMESPACE
     ////////////////////////////////////////////////////////////////////////////////////
     #if defined(__AVX2__) || defined(__AVX512F__)
     template <typename T, typename TT>
-    static void recode_simd_intrinsics(const T* in, TT* out, const std::size_t n, const double a = 0.0, const double b = 1.0);
+    static void recode_simd_intrinsics(const T* in, TT* out, const std::size_t n, const double a = 0.0, const double b = 1.0)
+    {
+        constexpr bool implementation_available = 
+            (std::is_same<T, double>::value && std::is_same<TT, std::uint8_t>::value) ||
+            (std::is_same<T, std::uint8_t>::value && std::is_same<TT, double>::value) ||
+            (std::is_same<T, std::uint8_t>::value && std::is_same<TT, std::int16_t>::value) ||
+            (std::is_same<T, std::uint8_t>::value && std::is_same<TT, std::int32_t>::value);
+        //static_assert(implementation_available, "error: not implemented yet");
+    }
 
     template <>
     inline void recode_simd_intrinsics<double, std::uint8_t>(const double* in, std::uint8_t* out, const std::size_t n, const double a, const double b)
@@ -1204,7 +1212,7 @@ namespace FP_NAMESPACE
     ////////////////////////////////////////////////////////////////////////////////////
     template <>
     template <>
-    inline void fp<double>::compress<0, 15>(typename format<0, 15>::type* out, const double* in, const std::size_t n)
+    inline void fp<double>::compress<0, 15>(const double* in, typename format<0, 15>::type* out, const std::size_t n)
     {
         if (n == 0)
         {
@@ -1216,7 +1224,7 @@ namespace FP_NAMESPACE
 
     template <>
     template <>
-    inline void fp<double>::decompress<0, 15>(double* out, const typename format<0, 15>::type* in, const std::size_t n)
+    inline void fp<double>::decompress<0, 15>(const typename format<0, 15>::type* in, double* out, const std::size_t n)
     {
         if (n == 0)
         {
@@ -1239,7 +1247,7 @@ namespace FP_NAMESPACE
 
     template <>
     template <>
-    inline void fp<float>::compress<0, 15>(typename format<0, 15>::type* out, const float* in, const std::size_t n)
+    inline void fp<float>::compress<0, 15>(const float* in, typename format<0, 15>::type* out, const std::size_t n)
     {
         if (n == 0)
         {
@@ -1251,7 +1259,7 @@ namespace FP_NAMESPACE
 
     template <>
     template <>
-    inline void fp<float>::decompress<0, 15>(float* out, const typename format<0, 15>::type* in, const std::size_t n)
+    inline void fp<float>::decompress<0, 15>(const typename format<0, 15>::type* in, float* out, const std::size_t n)
     {
         if (n == 0)
         {
@@ -1277,7 +1285,7 @@ namespace FP_NAMESPACE
     ////////////////////////////////////////////////////////////////////////////////////
     template <>
     template <>
-    inline void fp<double>::compress<0, 7>(typename format<0, 7>::type* out, const double* in, const std::size_t n)
+    inline void fp<double>::compress<0, 7>(const double* in, typename format<0, 7>::type* out, const std::size_t n)
     {
         if (n == 0)
         {
@@ -1289,7 +1297,7 @@ namespace FP_NAMESPACE
 
     template <>
     template <>
-    inline void fp<double>::decompress<0, 7>(double* out, const typename format<0, 7>::type* in, const std::size_t n)
+    inline void fp<double>::decompress<0, 7>(const typename format<0, 7>::type* in, double* out, const std::size_t n)
     {
         if (n == 0)
         {
@@ -1322,7 +1330,7 @@ namespace FP_NAMESPACE
 
     template <>
     template <>
-    inline void fp<float>::compress<0, 7>(typename format<0, 7>::type* out, const float* in, const std::size_t n)
+    inline void fp<float>::compress<0, 7>(const float* in, typename format<0, 7>::type* out, const std::size_t n)
     {
         if (n == 0)
         {
@@ -1334,7 +1342,7 @@ namespace FP_NAMESPACE
 
     template <>
     template <>
-    inline void fp<float>::decompress<0, 7>(float* out, const typename format<0, 7>::type* in, const std::size_t n)
+    inline void fp<float>::decompress<0, 7>(const typename format<0, 7>::type* in, float* out, const std::size_t n)
     {
         if (n == 0)
         {

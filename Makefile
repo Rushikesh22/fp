@@ -16,9 +16,9 @@ CXXFLAGS += -DTHREAD_PINNING
 CXXFLAGS += -D_COLMAJOR
 CXXFLAGS += -DFP_INTEGER_GEMV
 
-#all: test_fp
+all: test_fp
 #all: test_general_matrix_vector
-all: test_triangular_matrix_vector
+#all: test_triangular_matrix_vector
 #all: test_triangular_solve
 #all: test_general_matrix_vector test_triangular_matrix_vector test_triangular_solve
 

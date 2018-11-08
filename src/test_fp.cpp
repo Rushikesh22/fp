@@ -18,7 +18,7 @@ constexpr bool implementation_available(const std::size_t be, const std::size_t 
     const bool between_2bit_and_16bit = (be > 0 && bm > 0 && (be + bm) < 16);
     const bool no_compression = (be == fw::fp<real_t>::default_bits_exponent() && bm == fw::fp<real_t>::default_bits_mantissa());
     const bool double_to_float = (std::is_same<real_t, double>::value && be == fw::fp<float>::default_bits_exponent() && bm == fw::fp<float>::default_bits_mantissa());
-    const bool fixed_point = (be == 0 && (bm == 7 || bm == 11 || bm == 15));
+    const bool fixed_point = (be == 0 && (bm == 7 || bm == 15));
 
     return between_2bit_and_16bit || no_compression || double_to_float || fixed_point;
 }
@@ -47,8 +47,8 @@ void test_compression(const std::size_t n, const std::size_t seed, const X* ptr 
         data[i] = 2.0 * drand48() - 1.0;
     }
 
-    fw::fp<real_t>::compress<be, bm>(&data_compressed[0], &data[0], n);
-    fw::fp<real_t>::decompress<be, bm>(&data_decompressed[0], &data_compressed[0], n);
+    fw::fp<real_t>::compress<be, bm>(&data[0], &data_compressed[0], n);
+    fw::fp<real_t>::decompress<be, bm>(&data_compressed[0], &data_decompressed[0], n);
 
     real_t a = data[0];
     real_t b = data_decompressed[0];

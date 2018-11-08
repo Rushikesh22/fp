@@ -355,7 +355,7 @@ namespace FP_NAMESPACE
                         }
 
                         // compress the 'buffer'
-                        fp<T>::template compress<BE, BM>(ptr, &buffer[0], mm * nn);
+                        fp<T>::template compress<BE, BM>(&buffer[0], ptr, mm * nn);
                         
                         // move on to the next block
                         ptr += ((n - i) < bs ? num_elements_b : ((m - j) < bs ? num_elements_c : num_elements_a));
@@ -477,7 +477,7 @@ namespace FP_NAMESPACE
                             #endif
                             {
                                 // decompress the block
-                                fp<T>::template decompress<BE, BM>(&buffer_a[0], &compressed_data[k], mm * nn);
+                                fp<T>::template decompress<BE, BM>(&compressed_data[k], &buffer_a[0], mm * nn);
 
                                 // move on to the next block  and prefetch data
                                 k += ((n - i) < bs ? num_elements_b : k_inc);
@@ -709,7 +709,7 @@ namespace FP_NAMESPACE
                         }    
 
                         // compress the 'buffer'
-                        fp<T>::template compress<BE, BM>(ptr, buffer, (i == j ? ((mm * (mm + 1)) / 2) : mm * nn));
+                        fp<T>::template compress<BE, BM>(buffer, ptr, (i == j ? ((mm * (mm + 1)) / 2) : mm * nn));
 
                         // move on to the next block
                         if (i == j)
@@ -828,7 +828,7 @@ namespace FP_NAMESPACE
                             if (i == j)
                             {
                                 // decompress the 'buffer'
-                                fp<T>::template decompress<BE, BM>(&buffer_a[0], &compressed_data[k], (nn * (nn + 1)) / 2);    
+                                fp<T>::template decompress<BE, BM>(&compressed_data[k], &buffer_a[0], (nn * (nn + 1)) / 2);    
                                 
                                 // prepare call to tpmv
                                 for (std::size_t jj = 0; jj < nn; ++jj)
@@ -905,7 +905,7 @@ namespace FP_NAMESPACE
                                 #endif
                                 {
                                     // decompress the 'buffer'
-                                    fp<T>::template decompress<BE, BM>(&buffer_a[0], &compressed_data[k], mm * nn);
+                                    fp<T>::template decompress<BE, BM>(&compressed_data[k], &buffer_a[0], mm * nn);
 
                                     // move to the next block and prefetch data
                                     const std::size_t ij = (MT == triangular_matrix_type::upper ? i : j);
@@ -974,7 +974,7 @@ namespace FP_NAMESPACE
                             if (i == j)
                             {
                                 // decompress the 'buffer'
-                                fp<T>::template decompress<BE, BM>(&buffer_a[0], &compressed_data[k], (nn * (nn + 1)) / 2);
+                                fp<T>::template decompress<BE, BM>(&compressed_data[k], &buffer_a[0], (nn * (nn + 1)) / 2);
 
                                 // move on to the next block and prefetch data
                                 k += num_elements_a;
@@ -1026,7 +1026,7 @@ namespace FP_NAMESPACE
                                 #endif
                                 {
                                     // decompress the 'buffer'
-                                    fp<T>::template decompress<BE, BM>(&buffer_a[0], &compressed_data[k], mm * nn);
+                                    fp<T>::template decompress<BE, BM>(&compressed_data[k], &buffer_a[0], mm * nn);
 
                                     // move on to the next block
                                     const std::size_t ij = (MT == triangular_matrix_type::upper ? i : j);
@@ -1123,7 +1123,7 @@ namespace FP_NAMESPACE
                                 {
                                     // decompress the 'buffer'
                                     const std::size_t k = (transpose ? get_offset(MT, bi, bj) : get_offset(MT, bj, bi));
-                                    fp<T>::template decompress<BE, BM>(&buffer_a[0], &compressed_data[k], mm * nn);
+                                    fp<T>::template decompress<BE, BM>(&compressed_data[k], &buffer_a[0], mm * nn);
 
                                     if (transpose)
                                     {
@@ -1145,7 +1145,7 @@ namespace FP_NAMESPACE
 
                             // decompress the 'buffer'
                             const std::size_t k = get_offset(MT, bj, bj);
-                            fp<T>::template decompress<BE, BM>(&buffer_a[0], &compressed_data[k], (mm * (mm + 1)) / 2);
+                            fp<T>::template decompress<BE, BM>(&compressed_data[k], &buffer_a[0], (mm * (mm + 1)) / 2);
 
                             // apply triangular solve 
                             tpsv(cblas_layout, (MT == triangular_matrix_type::upper ? CblasUpper : CblasLower), (transpose ? CblasTrans : CblasNoTrans), CblasNonUnit, mm, &buffer_a[0], &y[bj * bs], 1);
@@ -1208,7 +1208,7 @@ namespace FP_NAMESPACE
                                 {
                                     // decompress the 'buffer'
                                     const std::size_t k = (transpose ? get_offset(MT, bi, bj) : get_offset(MT, bj, bi));
-                                    fp<T>::template decompress<BE, BM>(&buffer_a[0], &compressed_data[k], mm * nn);
+                                    fp<T>::template decompress<BE, BM>(&compressed_data[k], &buffer_a[0], mm * nn);
 
                                     // apply general matrix vector multiplication
                                     if (transpose)
@@ -1236,7 +1236,7 @@ namespace FP_NAMESPACE
 
                             // decompress the 'buffer'
                             const std::size_t k = get_offset(MT, bj, bj);
-                            fp<T>::template decompress<BE, BM>(&buffer_a[0], &compressed_data[k], (mm * (mm + 1)) / 2);
+                            fp<T>::template decompress<BE, BM>(&compressed_data[k], &buffer_a[0], (mm * (mm + 1)) / 2);
 
                             // apply triangular solve 
                             tpsv(cblas_layout, (MT == triangular_matrix_type::upper ? CblasUpper : CblasLower), (transpose ? CblasTrans : CblasNoTrans), CblasNonUnit, mm, &buffer_a[0], &y[bj * bs], 1);
