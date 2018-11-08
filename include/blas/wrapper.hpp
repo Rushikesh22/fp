@@ -9,14 +9,6 @@
 #include <cstdint>
 #include <cblas.h>
 
-#if defined(FP_MKL_INTEGER_GEMM_AVAILABLE)
-#include <mkl.h>
-#endif
-
-#if defined(FP_USE_LIBXSMM)
-#include <libxsmm.h>
-#endif
-
 #if !defined(FP_NAMESPACE)
 #define FP_NAMESPACE fw
 #endif
@@ -25,83 +17,6 @@ namespace FP_NAMESPACE
 {
     namespace blas
     {
-        // BLAS call wrapper: matrix matrix multiply
-        //
-        // helpful documentation:
-        // 1) https://software.intel.com/en-us/mkl-developer-reference-c-cblas-gemm
-
-        template <typename T>
-        static void gemm(const CBLAS_LAYOUT __Order, const CBLAS_TRANSPOSE __TransA, const CBLAS_TRANSPOSE __TransB,
-            const std::size_t __M, const std::size_t __N, const std::size_t __K, const T __alpha, const T* __A, const std::size_t __lda,
-            const T* __B, const std::size_t __ldb,
-            const T __beta, T* __C, const std::size_t __ldc);
-        
-        template <>
-        inline void gemm<double>(const CBLAS_LAYOUT __Order, const CBLAS_TRANSPOSE __TransA, const CBLAS_TRANSPOSE __TransB,
-            const std::size_t __M, const std::size_t __N, const std::size_t __K, const double __alpha, const double* __A, const std::size_t __lda, 
-            const double* __B, const std::size_t __ldb, 
-            const double __beta, double* __C, const std::size_t __ldc) 
-        {
-            #if defined(FP_USE_LIBXSMM)
-            const char transA = (__TransA == CblasTrans ? 'T' : 'N');
-            const char transB = (__TransB == CblasTrans ? 'T' : 'N');
-            const libxsmm_blasint m = __M;
-            const libxsmm_blasint n = __N;
-            const libxsmm_blasint k = __K;
-            const libxsmm_blasint lda = __lda;
-            const libxsmm_blasint ldb = __ldb;
-            const libxsmm_blasint ldc = __ldc;
-            const double alpha = __alpha;
-            const double beta = __beta;
-            
-            if (__Order == CblasRowMajor)
-            {
-                // libxsmm uses column major format per-default: A <-> B, n <-> m
-                libxsmm_dgemm(&transB, &transA, &n, &m, &k, &alpha, __B, &ldb, __A, &lda, &beta, __C, &ldc);
-            }
-            else
-            {
-                libxsmm_dgemm(&transA, &transB, &m, &n, &k, &alpha, __A, &lda, __B, &ldb, &beta, __C, &ldc);
-            }
-            #else
-            cblas_dgemm(__Order, __TransA, __TransB, __M, __N, __K, __alpha, __A, __lda, __B, __ldb, __beta, __C, __ldc);
-            #endif
-        }
-
-        template <>
-        inline void gemm<float>(const CBLAS_LAYOUT __Order, const CBLAS_TRANSPOSE __TransA, const CBLAS_TRANSPOSE __TransB,
-            const std::size_t __M, const std::size_t __N, const std::size_t __K, const float __alpha, const float* __A, const std::size_t __lda, 
-            const float* __B, const std::size_t __ldb, 
-            const float __beta, float* __C, const std::size_t __ldc) 
-        {
-            #if defined(FP_USE_LIBXSMM)
-            const char transpose = 'T';
-            const char notranspose = 'N';
-            const char transA = (__TransA == CblasTrans ? 'T' : 'N');
-            const char transB = (__TransB == CblasTrans ? 'T' : 'N');
-            const libxsmm_blasint m = __M;
-            const libxsmm_blasint n = __N;
-            const libxsmm_blasint k = __K;
-            const libxsmm_blasint lda = __lda;
-            const libxsmm_blasint ldb = __ldb;
-            const libxsmm_blasint ldc = __ldc;
-            const float alpha = __alpha;
-            const float beta = __beta;
-
-            if (__Order == CblasRowMajor)
-            {
-                // libxsmm uses column major format per-default: A <-> B, n <-> m
-                libxsmm_sgemm(&transB, &transA, &n, &m, &k, &alpha, __B, &ldb, __A, &lda, &beta, __C, &ldc);
-            }
-            else
-            {
-                libxsmm_sgemm(&transA, &transB, &m, &n, &k, &alpha, __A, &lda, __B, &ldb, &beta, __C, &ldc);
-            }
-            #else
-            cblas_sgemm(__Order, __TransA, __TransB, __M, __N, __K, __alpha, __A, __lda, __B, __ldb, __beta, __C, __ldc);
-            #endif
-        }
-
         // BLAS call wrapper: matrix vector multiply
         template <typename T>
         static void gemv(const CBLAS_LAYOUT __Order, const CBLAS_TRANSPOSE __TransA, 
@@ -115,24 +30,7 @@ namespace FP_NAMESPACE
             const double* __X, const std::size_t __incX, 
             const double __beta, double* __Y, const std::size_t __incY) 
         {
-            #if defined(FP_GEMV_TO_GEMM)
-            //const std::size_t lda = (__Order == CblasRowMajor ? __N : __M);
-            const std::size_t lda = __lda;
-            const std::size_t ldx = (__Order == CblasRowMajor ? __incX : (__TransA == CblasNoTrans ? __N : __M));
-            const std::size_t ldy = (__Order == CblasRowMajor ? __incY : (__TransA == CblasNoTrans ? __M : __N));
-            if (__TransA == CblasNoTrans)
-            {
-                // m, n, k : for the gemm call it is the dimensions of matrix OP(A) and OP(B) (NOT A and B)!
-                gemm(__Order, __TransA, CblasNoTrans, __M, __incX, __N, __alpha, __A, lda, __X, ldx, __beta, __Y, ldy);
-            }
-            else
-            {
-                // m, n, k : for the gemm call it is the dimensions of matrix OP(A) and OP(B) (NOT A and B)!
-                gemm(__Order, __TransA, CblasNoTrans, __N, __incX, __M, __alpha, __A, lda, __X, ldx, __beta, __Y, ldy);
-            }
-            #else
             cblas_dgemv(__Order, __TransA, __M, __N, __alpha, __A, __lda, __X, __incX, __beta, __Y, __incY);
-            #endif
         }
 
         template <>
@@ -141,72 +39,12 @@ namespace FP_NAMESPACE
             const float* __X, const std::size_t __incX, 
             const float __beta, float* __Y, const std::size_t __incY) 
         {
-            #if defined(FP_GEMV_TO_GEMM)
-            //const std::size_t lda = (__Order == CblasRowMajor ? __N : __M);
-            const std::size_t lda = __lda;
-            const std::size_t ldx = (__Order == CblasRowMajor ? __incX : (__TransA == CblasNoTrans ? __N : __M));
-            const std::size_t ldy = (__Order == CblasRowMajor ? __incY : (__TransA == CblasNoTrans ? __M : __N));
-            if (__TransA == CblasNoTrans)
-            {
-                // m, n, k : for the gemm call it is the dimensions of matrix OP(A) and OP(B) (NOT A and B)!
-                gemm(__Order, __TransA, CblasNoTrans, __M, __incX, __N, __alpha, __A, lda, __X, ldx, __beta, __Y, ldy);
-            }
-            else
-            {
-                // m, n, k : for the gemm call it is the dimensions of matrix OP(A) and OP(B) (NOT A and B)!
-                gemm(__Order, __TransA, CblasNoTrans, __N, __incX, __M, __alpha, __A, lda, __X, ldx, __beta, __Y, ldy);
-            }
-            #else
             cblas_sgemv(__Order, __TransA, __M, __N, __alpha, __A, __lda, __X, __incX, __beta, __Y, __incY);
-            #endif
         }
 
-        #if defined(FP_MKL_INTEGER_GEMM_AVAILABLE)
-        template <typename T>
-        static void gemv(const matrix_layout layout, const bool transpose, const std::size_t m, const std::size_t n, const T* a, const T* x, std::int32_t* y);
-
-        template <>
-        inline void gemv<std::int16_t>(const matrix_layout layout, const bool transpose, const std::size_t m, const std::size_t n, const std::int16_t* a, const std::int16_t* x, std::int32_t* y)
-        {
-            const std::size_t M = 1;
-            const std::size_t N = (transpose ? n : m);
-            const std::size_t K = (transpose ? m : n);
-            const std::size_t lda = (layout == matrix_layout::rowmajor ? n : m);
-            const std::size_t ldx = (layout == matrix_layout::rowmajor ? 1 : (transpose ? m : n));
-            const std::size_t ldy = (layout == matrix_layout::rowmajor ? (transpose ? n : m) : 1);
-            const std::int32_t dummy = 0;
-
-            cblas_gemm_s16s16s32((layout == matrix_layout::rowmajor ? CblasRowMajor : CblasColMajor), CblasTrans, (transpose ? CblasNoTrans : CblasTrans), CblasFixOffset,
-                      M, N, K,
-                1.0F, reinterpret_cast<const MKL_INT16*>(&x[0]), ldx, 0, 
-                      reinterpret_cast<const MKL_INT16*>(&a[0]), lda, 0,
-                0.0F, reinterpret_cast<MKL_INT*>(&y[0]), ldy, 
-                      reinterpret_cast<const MKL_INT*>(&dummy));
-        }
-
-        template <>
-        inline void gemv<std::int8_t>(const matrix_layout layout, const bool transpose, const std::size_t m, const std::size_t n, const std::int8_t* a, const std::int8_t* x, std::int32_t* y)
-        {
-            const std::size_t M = 1;
-            const std::size_t N = (transpose ? n : m);
-            const std::size_t K = (transpose ? m : n);
-            const std::size_t lda = (layout == matrix_layout::rowmajor ? n : m);
-            const std::size_t ldx = (layout == matrix_layout::rowmajor ? 1 : (transpose ? m : n));
-            const std::size_t ldy = (layout == matrix_layout::rowmajor ? (transpose ? n : m) : 1);
-            const std::int32_t dummy = 0;
-
-            cblas_gemm_s8u8s32((layout == matrix_layout::rowmajor ? CblasRowMajor : CblasColMajor), CblasTrans, (transpose ? CblasNoTrans : CblasTrans), CblasFixOffset,
-                      M, N, K,
-                1.0F, reinterpret_cast<const MKL_INT8*>(&x[0]), ldx, 0, 
-                      reinterpret_cast<const MKL_INT8*>(&a[0]), lda, 0,
-                0.0F, reinterpret_cast<MKL_INT*>(&y[0]), ldy,
-                      reinterpret_cast<const MKL_INT*>(&dummy));
-        }
-        #endif
-        
         #if defined(FP_INTEGER_GEMV)
         template <typename T_1, typename T_2>
-        static void gemv(const matrix_layout layout, const bool transpose, const std::size_t m, const std::size_t n, const T_1* a, const T_2* x, T_2* y, const T_2 p_1 = 0.0, const T_2 p_2 = 1.0)
+        static void gemv(const matrix_layout layout, const bool transpose, const std::size_t m, const std::size_t n, const T_1* a, const T_2* x, T_2* y)
         {
             
             if ((transpose && layout == matrix_layout::rowmajor) ||
@@ -220,7 +58,7 @@ namespace FP_NAMESPACE
                     y[j] = 0;
                 }
 
-                #if defined(FP_USE_SIMD_INTRINSICS) && (defined(__AVX2__) || defined(__AVX512F__))
+                #if defined(__AVX2__) || defined(__AVX512F__)
                 constexpr bool use_simd_intrinsics = std::is_same<T_1, std::uint8_t>::value;
                 if (use_simd_intrinsics)
                 {
@@ -275,7 +113,7 @@ namespace FP_NAMESPACE
                 const std::size_t N = (transpose ? n : m);
                 const std::size_t M = (transpose ? m : n);
 
-                #if defined(FP_USE_SIMD_INTRINSICS) && (defined(__AVX2__) || defined(__AVX512F__))
+                #if defined(__AVX2__) || defined(__AVX512F__)
                 constexpr bool use_simd_intrinsics = std::is_same<T_1, std::uint8_t>::value;
                 if (use_simd_intrinsics)
                 {

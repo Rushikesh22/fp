@@ -16,14 +16,6 @@
 #define FP_NAMESPACE fw 
 #endif
 
-#if !defined(FP_MAX_UINT8)
-#define FP_MAX_UINT8 0xFFU
-#endif
-
-#if !defined(FP_MAX_UINT16)
-#define FP_MAX_UINT16 0xFFFFU
-#endif
-
 namespace FP_NAMESPACE
 {
     //! \brief Get maximum
@@ -740,6 +732,7 @@ namespace FP_NAMESPACE
     template <>
     struct fp<double>::format<8, 7>
     {
+        //using type = std::uint16_t;
         using type = std::uint16_t;
 
         static inline std::size_t memory_footprint_bytes(const std::size_t n)
@@ -842,9 +835,7 @@ namespace FP_NAMESPACE
     ////////////////////////////////////////////////////////////////////////////////////
     // HELPER: fixed precision
     ////////////////////////////////////////////////////////////////////////////////////
-    enum class fp2int { signed_conversion = 0, unsigned_conversion = 1 };
-
-    #if defined(FP_USE_SIMD_INTRINSICS) && (defined(__AVX2__) || defined(__AVX512F__))
+    #if defined(__AVX2__) || defined(__AVX512F__)
     template <typename T, typename TT>
     static void recode_simd_intrinsics(const T* in, TT* out, const std::size_t n, const double a = 0.0, const double b = 1.0);
 
@@ -1007,7 +998,7 @@ namespace FP_NAMESPACE
     #endif
 
     template <typename T, typename TT>
-    static void recode_fixed_point_kernel(TT* out, const T* in, const std::size_t n, const std::size_t m, const T a, const T b, T* p_1 = nullptr, T* p_2 = nullptr, T* p_3 = nullptr)
+    static void recode_fixed_point_kernel(const T* in, TT* out, const std::size_t n, const std::size_t m, const T a, const T b, T* p_1 = nullptr, T* p_2 = nullptr)
     {
         if (n == 0)
         {
@@ -1021,7 +1012,7 @@ namespace FP_NAMESPACE
             // together with the output bitstream as 'float's
             T* fptr_out = reinterpret_cast<T*>(out);
             fptr_out[0] = a;
-            fptr_out[1] = 1 / b;
+            fptr_out[1] = static_cast<T>(1.0) / b;
             ptr_out = reinterpret_cast<TT*>(&fptr_out[2]);
         }
         else
@@ -1032,11 +1023,11 @@ namespace FP_NAMESPACE
             }
             if (p_2 != nullptr)
             {
-                (*p_2) = 1 / b;
+                (*p_2) = static_cast<T>(1.0) / b;
             }
         }
         
-        #if defined(FP_USE_SIMD_INTRINSICS) && (defined(__AVX2__) || defined(__AVX512F__))
+        #if defined(__AVX2__) || defined(__AVX512F__)
         constexpr bool use_simd_intrinsics = std::is_same<TT, std::uint8_t>::value;
         if (use_simd_intrinsics)
         {
@@ -1051,19 +1042,6 @@ namespace FP_NAMESPACE
                 ptr_out[i] = (in[i] - a) * b;
             }
         }
-
-        if (p_3 != nullptr)
-        {
-            for (std::size_t i = 0, k = 0; i < n; i += m, ++k)
-            {
-                p_3[k] = 0;
-                const std::size_t ii_max = std::min(n - i, m);
-                for (std::size_t ii = 0; ii < ii_max; ++ii)
-                {
-                    p_3[k] += in[i + ii];
-                }
-            } 
-        }
     }
 
     ////////////////////////////////////////////////////////////////////////////////////
@@ -1073,14 +1051,10 @@ namespace FP_NAMESPACE
     template <>
     struct fp<double>::format<0, 15>
     {
-        #if (FP_MAX_UINT16 == 0xFFFFU)
         using type = std::uint16_t;
-        #else
-        using type = std::int16_t;
-        #endif
 
-        static constexpr type max_uint = FP_MAX_UINT16;
-
+        static constexpr std::uint16_t max_int = 0xFFFFU;
+    
         static inline std::size_t memory_footprint_bytes(const std::size_t n)
         {
             if (n == 0)
@@ -1103,14 +1077,10 @@ namespace FP_NAMESPACE
     template <>
     struct fp<float>::format<0, 15>
     {
-        #if (FP_MAX_UINT16 == 0xFFFFU)
         using type = std::uint16_t;
-        #else
-        using type = std::int16_t;
-        #endif
 
-        static constexpr type max_uint = FP_MAX_UINT16;
-
+        static constexpr std::uint16_t max_int = 0xFFFFU;
+     
         static inline std::size_t memory_footprint_bytes(const std::size_t n)
         {
             if (n == 0)
@@ -1136,16 +1106,10 @@ namespace FP_NAMESPACE
     template <>
     struct fp<double>::format<0, 7>
     {
-        #if (FP_MAX_UINT8 == 0xFFU)
         using type = std::uint8_t;
-        #elif (FP_MAX_UINT8 == 0x7FU)
-        using type = std::int8_t;
-        #else
-        static_assert(false, "error: invalid FP_MAX_UINT8 value");
-        #endif
 
-        static constexpr type max_uint = FP_MAX_UINT8;
-
+        static constexpr std::uint8_t max_int = 0xFFU;
+     
         static inline std::size_t memory_footprint_bytes(const std::size_t n)
         {
             if (n == 0)
@@ -1154,7 +1118,7 @@ namespace FP_NAMESPACE
             }
             else
             {
-                #if defined(FP_USE_SIMD_INTRINSICS)
+                #if defined(__AVX2__) || defined(__AVX512F__)
                 constexpr std::size_t chunk_size = 32;
                 return (2 * sizeof(double) + (((n + (chunk_size - 1)) / chunk_size) * chunk_size * sizeof(type)));
                 #else
@@ -1173,16 +1137,10 @@ namespace FP_NAMESPACE
     template <>
     struct fp<float>::format<0, 7>
     {
-        #if (FP_MAX_UINT8 == 0xFFU)
         using type = std::uint8_t;
-        #elif (FP_MAX_UINT8 == 0x7FU)
-        using type = std::int8_t;
-        #else
-        static_assert(false, "error: invalid FP_MAX_UINT8 value");
-        #endif
 
-        static constexpr type max_uint = FP_MAX_UINT8;
-
+        static constexpr std::uint8_t max_int = 0xFFU;
+     
         static inline std::size_t memory_footprint_bytes(const std::size_t n)
         {
             if (n == 0)
@@ -1202,59 +1160,43 @@ namespace FP_NAMESPACE
     };
 
     template <typename T, typename TT, typename X = typename std::enable_if<!(std::is_same<TT, typename fp<T>::template format<0, 15>::type>::value) && !(std::is_same<TT, typename fp<T>::template format<0, 7>::type>::value)>::type>
-    static void recode_fixed_point(const fp2int conversion, TT* out, const T* in, const std::size_t n, const std::size_t m = 1, T* p_1 = nullptr, T* p_2 = nullptr, T* p_3 = nullptr, const X* dummy = nullptr)
+    static void recode_fixed_point(const T* in, TT* out, const std::size_t n, const std::size_t m = 1, T* p_1 = nullptr, T* p_2 = nullptr, const X* dummy = nullptr)
     {
         ; // no implementation
     }
 
     template <typename T>
-    static void recode_fixed_point(const fp2int conversion, typename fp<T>::template format<0, 15>::type* out, const T* in, const std::size_t n, const std::size_t m = 1, T* p_1 = nullptr, T* p_2 = nullptr, T* p_3 = nullptr)
+    static void recode_fixed_point(const T* in, typename fp<T>::template format<0, 15>::type* out, const std::size_t n, const std::size_t m = 1, T* p_1 = nullptr, T* p_2 = nullptr)
     {
         if (n == 0)
         {
             return;
         }
 
-        #if (FP_MAX_UINT16 == 0xFFFFU)
-        // unsigned integer conversion
         const T minimum = scan_min(in, n);
         const T maximum = scan_max(in, n);
-        #else
-        // signed or unsigned integer conversion
-        const T minimum = (conversion == fp2int::signed_conversion ? 0 : scan_min(in, n));
-        const T maximum = (conversion == fp2int::signed_conversion ? scan_absmax(in, n) : scan_max(in, n));
-        #endif
 
         const T a = minimum;
-        const T b = fp<T>::template format<0, 15>::max_uint / (maximum - a);
+        const T b = fp<T>::template format<0, 15>::max_int / (maximum - a);
     
-        recode_fixed_point_kernel(out, in, n, m, a, b, p_1, p_2, p_3);
+        recode_fixed_point_kernel(in, out, n, m, a, b, p_1, p_2);
     }
 
     template <typename T>
-    static void recode_fixed_point(const fp2int conversion, typename fp<T>::template format<0, 7>::type* out, const T* in, const std::size_t n, const std::size_t m = 1, T* p_1 = nullptr, T* p_2 = nullptr, T* p_3 = nullptr)
+    static void recode_fixed_point(const T* in, typename fp<T>::template format<0, 7>::type* out, const std::size_t n, const std::size_t m = 1, T* p_1 = nullptr, T* p_2 = nullptr)
     {
         if (n == 0)
         {
             return;
         }
     
-        #if (FP_MAX_UINT8 == 0xFFU)
-        // unsigned integer conversion
         const T minimum = scan_min(in, n);
         const T maximum = scan_max(in, n);
-        #elif (FP_MAX_UINT8 == 0x7FU)
-        // signed or unsigned integer conversion
-        const T minimum = (conversion == fp2int::signed_conversion ? 0 : scan_min(in, n));
-        const T maximum = (conversion == fp2int::signed_conversion ? scan_absmax(in, n) : scan_max(in, n));
-        #else
-        static_assert(false, "error: invalid FP_MAX_UINT8 value");
-        #endif
-
-        const T a = minimum;
-        const T b = fp<T>::template format<0, 7>::max_uint / (maximum - a);
     
-        recode_fixed_point_kernel(out, in, n, m, a, b, p_1, p_2, p_3);
+        const T a = minimum;
+        const T b = fp<T>::template format<0, 7>::max_int / (maximum - a);
+    
+        recode_fixed_point_kernel(in, out, n, m, a, b, p_1, p_2);
     }
 
     ////////////////////////////////////////////////////////////////////////////////////
@@ -1268,9 +1210,8 @@ namespace FP_NAMESPACE
         {
             return;
         }
-        
-        // default conversion scheme: unsigned
-        recode_fixed_point(fp2int::unsigned_conversion, out, in, n);
+                
+        recode_fixed_point(in, out, n);
     }
 
     template <>
@@ -1305,8 +1246,7 @@ namespace FP_NAMESPACE
             return;
         }
         
-        // default conversion scheme: unsigned
-        recode_fixed_point(fp2int::unsigned_conversion, out, in, n);
+        recode_fixed_point(in, out, n);
     }
 
     template <>
@@ -1344,8 +1284,7 @@ namespace FP_NAMESPACE
             return;
         }
 
-        // default conversion scheme: unsigned
-        recode_fixed_point(fp2int::unsigned_conversion, out, in, n);
+        recode_fixed_point(in, out, n);
     }
 
     template <>
@@ -1364,7 +1303,7 @@ namespace FP_NAMESPACE
         using in_t = typename format<0, 7>::type;
         const in_t* ptr_in = reinterpret_cast<const in_t*>(&fptr_in[2]);
 
-        #if defined(FP_USE_SIMD_INTRINSICS) && (defined(__AVX2__) || defined(__AVX512F__))
+        #if defined(__AVX2__) || defined(__AVX512F__)
         constexpr bool use_simd_intrinsics = std::is_same<typename format<0, 7>::type, std::uint8_t>::value;
         if (use_simd_intrinsics)
         {
@@ -1390,8 +1329,7 @@ namespace FP_NAMESPACE
             return;
         }
 
-        // default conversion scheme: unsigned
-        recode_fixed_point(fp2int::unsigned_conversion, out, in, n);
+        recode_fixed_point(in, out, n);
     }
 
     template <>
