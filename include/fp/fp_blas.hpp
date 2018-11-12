@@ -370,6 +370,70 @@ namespace FP_NAMESPACE
                 return (ptr - compressed_data);
             }
 
+            static void decompress(const fp_type* compressed_data, T* data, const std::array<std::size_t, 2>& extent, const std::size_t ld_data, const std::size_t bs = bs_default, matrix* mat = nullptr)
+            {
+                if (data == nullptr || compressed_data == nullptr)
+                {
+                    std::cerr << "error in matrix<..," << BE << "," << BM << ">::decompress: any of the pointers is a nullptr" << std::endl;
+                    return;
+                }
+
+                const std::size_t m = extent[0];
+                const std::size_t n = extent[1];
+                if (m == 0 || n == 0)
+                {
+                    return;
+                }
+
+                const std::size_t num_elements_a = (mat != nullptr ? mat->num_elements_a : fp<T>::template format<BE, BM>::memory_footprint_elements(bs * bs));
+                const std::size_t num_elements_b = (mat != nullptr ? mat->num_elements_b : fp<T>::template format<BE, BM>::memory_footprint_elements(bs * (n - (n / bs) * bs)));
+                const std::size_t num_elements_c = (mat != nullptr ? mat->num_elements_c : fp<T>::template format<BE, BM>::memory_footprint_elements((m - (m / bs) * bs) * bs));
+                const std::size_t num_elements_d = (mat != nullptr ? mat->num_elements_d : fp<T>::template format<BE, BM>::memory_footprint_elements((m - (m / bs) * bs) * (n - (n / bs) * bs)));
+
+                // decompress the matrix block by block
+                alignas(alignment) T buffer[bs * bs];
+                const fp_type* ptr = compressed_data;
+                for (std::size_t j = 0; j < m; j += bs)
+                {
+                    for (std::size_t i = 0; i < n; i += bs)
+                    {
+                        const std::size_t mm = std::min(m - j, bs);
+                        const std::size_t nn = std::min(n - i, bs);
+
+                        // decompress the 'buffer'
+                        fp<T>::template decompress<BE, BM>(ptr, &buffer[0], mm * nn);
+                        
+                        // move on to the next block
+                        ptr += ((n - i) < bs ? num_elements_b : ((m - j) < bs ? num_elements_c : num_elements_a));
+
+                        // output the 'buffer'
+                        for (std::size_t jj = 0; jj < mm; ++jj)
+                        {
+                            for (std::size_t ii = 0; ii < nn; ++ii)
+                            {
+                                data[idx<L>(j + jj, i + ii, ld_data, ld_data)] = buffer[idx<L>(jj, ii, mm, nn)];
+                            }  
+                        }
+                    }
+                }
+            }
+
+            void decompress(T* data, const std::size_t ld_data = 0)
+            {
+                if (data == nullptr)
+                {
+                    std::cerr << "error in matrix<..," << BE << "," << BM << ">::decompress: pointers is a nullptr" << std::endl;
+                    return;
+                }
+
+                if (m == 0 || n == 0)
+                {
+                    return;
+                }
+
+                decompress(compressed_data, data, std::array<std::size_t, 2>({m, n}), (ld_data == 0 ? (L == matrix_layout::rowmajor ? n : m) : ld_data), bs, this);
+            }
+
             static std::size_t memory_footprint_elements(const std::array<std::size_t, 2>& extent, const std::size_t bs = bs_default)
             {
                 const std::size_t m = extent[0];
@@ -735,6 +799,102 @@ namespace FP_NAMESPACE
             static ptrdiff_t compress(const T* data, fp_type* compressed_data, const std::array<std::size_t, 2>& extent, const std::size_t ld_data, const std::size_t bs = bs_default, triangular_matrix* mat = nullptr)
             {
                 return compress(data, compressed_data, std::array<std::size_t, 1>({extent[0]}), ld_data, bs, mat);
+            }
+
+            static void decompress(const fp_type* compressed_data, T* data, const std::array<std::size_t, 1>& extent, const std::size_t ld_data, const std::size_t bs = bs_default, triangular_matrix* mat = nullptr)
+            {
+                if (data == nullptr || compressed_data == nullptr)
+                {
+                    std::cerr << "error in triangular_matrix<..," << BE << "," << BM << ">::decompress: any of the pointers is a nullptr" << std::endl;
+                    return;
+                }
+
+                const std::size_t n = extent[0];
+                if (n == 0)
+                {
+                    return;
+                }
+
+                const std::size_t num_elements_a = (mat != nullptr ? mat->num_elements_a : fp<T>::template format<BE, BM>::memory_footprint_elements((bs * (bs + 1)) / 2));
+                const std::size_t num_elements_b = (mat != nullptr ? mat->num_elements_b : fp<T>::template format<BE, BM>::memory_footprint_elements(bs * bs));
+                const std::size_t num_elements_c = (mat != nullptr ? mat->num_elements_c : fp<T>::template format<BE, BM>::memory_footprint_elements(bs * (n - (n / bs) * bs)));
+                const std::size_t num_elements_d = (mat != nullptr ? mat->num_elements_d : fp<T>::template format<BE, BM>::memory_footprint_elements(((n - (n / bs) * bs) * (n - (n / bs) * bs + 1)) / 2));
+                
+                // decompress the matrix block by block
+                constexpr bool upper_rowmajor = (MT == triangular_matrix_type::upper) && (L == matrix_layout::rowmajor);
+                constexpr bool lower_colmajor = (MT == triangular_matrix_type::lower) && (L == matrix_layout::colmajor);
+
+                alignas(alignment) T buffer[bs * bs];
+                const fp_type* ptr = compressed_data;
+                for (std::size_t j = 0; j < n; j += bs)
+                {
+                    const std::size_t i_start = (MT == triangular_matrix_type::upper ? j : 0);
+                    const std::size_t i_end = (MT == triangular_matrix_type::upper ? n : (j + 1));
+                    
+                    for (std::size_t i = i_start; i < i_end; i += bs)
+                    {
+                        const std::size_t mm = std::min(n - j, bs);
+                        const std::size_t nn = std::min(n - i, bs);
+
+                        // decompress the 'buffer'
+                        fp<T>::template decompress<BE, BM>(ptr, buffer, (i == j ? ((mm * (mm + 1)) / 2) : mm * nn));
+
+                        // move on to the next block
+                        if (i == j)
+                        {
+                            ptr += num_elements_a;
+                        }
+                        else
+                        {
+                            const std::size_t ij = (MT == triangular_matrix_type::upper ? i : j);
+                            ptr += ((n - ij) < bs ? num_elements_c : num_elements_b);
+                        }
+
+                        // output the 'buffer'
+                        for (std::size_t jj = 0, kk = 0; jj < mm; ++jj)
+                        {
+                            // diagonal blocks
+                            if (i == j)
+                            {
+                                const std::size_t ii_start = (upper_rowmajor || lower_colmajor ? jj : 0);
+                                const std::size_t ii_end = (upper_rowmajor || lower_colmajor ? nn : (jj + 1));
+
+                                for (std::size_t ii = ii_start; ii < ii_end; ++ii, ++kk)
+                                {
+                                    data[(j + jj) * ld_data + (i + ii)] = buffer[kk];
+                                }
+                            }
+                            // non-diagonal blocks
+                            else
+                            {
+                                for (std::size_t ii = 0; ii < nn; ++ii)
+                                {
+                                    data[idx<L>(j + jj, i + ii, ld_data, ld_data)] = buffer[idx<L>(jj, ii, mm, nn)];
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            static void decompress(const fp_type* compressed_data, T* data, const std::array<std::size_t, 2>& extent, const std::size_t ld_data, const std::size_t bs = bs_default, triangular_matrix* mat = nullptr)
+            {
+                decompress(data, compressed_data, std::array<std::size_t, 1>({extent[0]}), ld_data, bs, mat);
+            }
+
+            void decompress(T* data, const std::size_t ld_data = 0)
+            {
+                if (data == nullptr)
+                {
+                    std::cerr << "error in triangular_matrix<..," << BE << "," << BM << ">::decompress: pointers is a nullptr" << std::endl;
+                }
+
+                if (n == 0)
+                {
+                    return;
+                }
+
+                decompress(compressed_data, data, std::array<std::size_t, 1>({n}), (ld_data == 0 ? n : ld_data), bs, this);
             }
 
             static std::size_t memory_footprint_elements(const std::array<std::size_t, 1>& extent, const std::size_t bs = bs_default)
