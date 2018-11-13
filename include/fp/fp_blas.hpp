@@ -538,7 +538,7 @@ namespace FP_NAMESPACE
                                 // integer gemm : (1 x k) * (k x n) -> (1 x n)
                                 const std::size_t src_idx = (transpose ? j : i);
                                 const std::size_t dst_idx = (transpose ? i : j);
-                                gemv(L, transpose, mm, nn, &tmp_a[0], &x[src_idx], &tmp_y[0]);
+                                blas::gemv(L, transpose, mm, nn, &tmp_a[0], &x[src_idx], &tmp_y[0]);
                                 // ..finalize gemm call: rescaling
                                 const T a = rescale_p_4;
                                 const T b = rescale_p_2[src_idx / bs] * rescale_p_3;
@@ -560,7 +560,7 @@ namespace FP_NAMESPACE
                                 const std::size_t lda = (L == matrix_layout::rowmajor ? nn : mm);
                                 const std::size_t src_idx = (transpose ? j : i);
                                 const std::size_t dst_idx = (transpose ? i : j);
-                                gemv(cblas_layout, (transpose ? CblasTrans : CblasNoTrans), mm, nn, alpha, &buffer_a[0], lda, &x[src_idx], 1, f_1, &y[dst_idx], 1);
+                                blas::gemv(cblas_layout, (transpose ? CblasTrans : CblasNoTrans), mm, nn, alpha, &buffer_a[0], lda, &x[src_idx], 1, f_1, &y[dst_idx], 1);
                             }
                         }
                     }
@@ -568,6 +568,16 @@ namespace FP_NAMESPACE
             }
 
             virtual void matrix_vector(const bool transpose, const T alpha, const std::vector<T>& x, const T beta, std::vector<T>& y) const
+            {
+                matrix_vector(transpose, alpha, &x[0], beta, &y[0]);
+            }
+
+            void gemv(const bool transpose, const T alpha, const T* x, const T beta, T* y) const
+            {
+                matrix_vector(transpose, alpha, x, beta, y);
+            }
+            
+            void gemv(const bool transpose, const T alpha, const std::vector<T>& x, const T beta, std::vector<T>& y) const
             {
                 matrix_vector(transpose, alpha, &x[0], beta, &y[0]);
             }
@@ -1025,7 +1035,7 @@ namespace FP_NAMESPACE
                                 }
 
                                 // apply triangular matrix vector multiply
-                                tpmv(cblas_layout, (MT == triangular_matrix_type::upper ? CblasUpper : CblasLower), (transpose ? CblasTrans : CblasNoTrans), CblasNonUnit, nn, &buffer_a[0], &buffer_y[0], 1);
+                                blas::tpmv(cblas_layout, (MT == triangular_matrix_type::upper ? CblasUpper : CblasLower), (transpose ? CblasTrans : CblasNoTrans), CblasNonUnit, nn, &buffer_a[0], &buffer_y[0], 1);
 
                                 // scale by 'alpha'
                                 for (std::size_t jj = 0; jj < nn; ++jj)
@@ -1080,7 +1090,7 @@ namespace FP_NAMESPACE
                                     const std::size_t src_idx = (transpose ? j : i);
                                     const std::size_t dst_idx = (transpose ? i : j);
                                     // the following gemm call uses alpha=1 internally
-                                    gemv(L, transpose, mm, nn, &tmp_a[0], &x[src_idx], &tmp_y[0]);
+                                    blas::gemv(L, transpose, mm, nn, &tmp_a[0], &x[src_idx], &tmp_y[0]);
                                     // ..finalize gemm call: rescaling
                                     const T a = rescale_p_4;
                                     const T b = rescale_p_2[src_idx / bs] * rescale_p_3;
@@ -1103,7 +1113,7 @@ namespace FP_NAMESPACE
                                     const std::size_t lda = (L == matrix_layout::rowmajor ? nn : mm);
                                     const std::size_t src_idx = (transpose ? j : i);
                                     const std::size_t dst_idx = (transpose ? i : j);
-                                    gemv(cblas_layout, (transpose ? CblasTrans : CblasNoTrans), mm, nn, alpha, &buffer_a[0], lda, &x[src_idx], 1, f_1, &y[dst_idx], 1);
+                                    blas::gemv(cblas_layout, (transpose ? CblasTrans : CblasNoTrans), mm, nn, alpha, &buffer_a[0], lda, &x[src_idx], 1, f_1, &y[dst_idx], 1);
                                 }
                             }
                         }
@@ -1112,6 +1122,16 @@ namespace FP_NAMESPACE
             }
 
             virtual void matrix_vector(const bool transpose, const T alpha, const std::vector<T>& x, const T beta, std::vector<T>& y) const
+            {
+                matrix_vector(transpose, alpha, &x[0], beta, &y[0]);
+            }
+
+            virtual void tpmv(const bool transpose, const T alpha, const T* x, const T beta, T* y) const
+            {
+                matrix_vector(transpose, alpha, x, beta, y);
+            }
+
+            virtual void tpmv(const bool transpose, const T alpha, const std::vector<T>& x, const T beta, std::vector<T>& y) const
             {
                 matrix_vector(transpose, alpha, &x[0], beta, &y[0]);
             }
@@ -1168,7 +1188,7 @@ namespace FP_NAMESPACE
                                 k += num_elements_a;
                                 
                                 // apply symmetric matrix vector multiply
-                                spmv(cblas_layout, (MT == triangular_matrix_type::upper ? CblasUpper : CblasLower), nn, alpha, &buffer_a[0], &x[i], 1, f_1, &y[i], 1);
+                                blas::spmv(cblas_layout, (MT == triangular_matrix_type::upper ? CblasUpper : CblasLower), nn, alpha, &buffer_a[0], &x[i], 1, f_1, &y[i], 1);
                             }
                             // non-diagonal blocks
                             else
@@ -1188,7 +1208,7 @@ namespace FP_NAMESPACE
                                     // integer gemm : (1 x k) * (k x n) -> (1 x n)
                                     //
                                     // the following gemm call uses alpha=1 internally
-                                    gemv(L, false, mm, nn, &tmp_a[0], &x[i], &tmp_y[0]);
+                                    blas::gemv(L, false, mm, nn, &tmp_a[0], &x[i], &tmp_y[0]);
                                     {
                                         // ..finalize gemm call: rescaling
                                         const T a = rescale_p_4;
@@ -1199,7 +1219,7 @@ namespace FP_NAMESPACE
                                         }
                                     }
                                     // the following gemm call uses alpha=1 internally
-                                    gemv(L, true, mm, nn, &tmp_a[0], &x[j], &tmp_y[0]);
+                                    blas::gemv(L, true, mm, nn, &tmp_a[0], &x[j], &tmp_y[0]);
                                     {
                                         // ..finalize gemm call: rescaling
                                         const T a = rescale_p_4;
@@ -1222,8 +1242,8 @@ namespace FP_NAMESPACE
                                     
                                     // apply general matrix vector multiplication
                                     const std::size_t lda = (L == matrix_layout::rowmajor ? nn : mm);
-                                    gemv(cblas_layout, CblasNoTrans, mm, nn, alpha, &buffer_a[0], lda, &x[i], 1, f_1, &y[j], 1);
-                                    gemv(cblas_layout, CblasTrans, mm, nn, alpha, &buffer_a[0], lda, &x[j], 1, f_1, &y[i], 1);
+                                    blas::gemv(cblas_layout, CblasNoTrans, mm, nn, alpha, &buffer_a[0], lda, &x[i], 1, f_1, &y[j], 1);
+                                    blas::gemv(cblas_layout, CblasTrans, mm, nn, alpha, &buffer_a[0], lda, &x[j], 1, f_1, &y[i], 1);
                                 }
                             }
                         }
@@ -1232,6 +1252,16 @@ namespace FP_NAMESPACE
             }
 
             virtual void symmetric_matrix_vector(const T alpha, const std::vector<T>& x, const T beta, std::vector<T>& y) const
+            {
+                symmetric_matrix_vector(alpha, &x[0], beta, &y[0]);
+            }
+
+            virtual void spmv(const T alpha, const T* x, const T beta, T* y) const
+            {
+                symmetric_matrix_vector(alpha, x, beta, y);
+            }
+
+            virtual void spmv(const T alpha, const std::vector<T>& x, const T beta, std::vector<T>& y) const
             {
                 symmetric_matrix_vector(alpha, &x[0], beta, &y[0]);
             }
@@ -1292,11 +1322,11 @@ namespace FP_NAMESPACE
                                     }
                                     if (transpose)
                                     {
-                                        gemv(L, true, nn, mm, &tmp_a[0], &y[bi * bs], &tmp_x[0]);
+                                        blas::gemv(L, true, nn, mm, &tmp_a[0], &y[bi * bs], &tmp_x[0]);
                                     }
                                     else
                                     {
-                                        gemv(L, false, mm, nn, &tmp_a[0], &y[bi * bs], &tmp_x[0]);
+                                        blas::gemv(L, false, mm, nn, &tmp_a[0], &y[bi * bs], &tmp_x[0]);
                                     }
                                     // ..finalize gemm call: rescaling
                                     const T a = rescale_p_4;
@@ -1316,12 +1346,12 @@ namespace FP_NAMESPACE
                                     if (transpose)
                                     {
                                         const std::size_t lda = (L == matrix_layout::rowmajor ? mm : nn);
-                                        gemv(cblas_layout, CblasTrans, nn, mm, f_1, &buffer_a[0], lda, &y[bi * bs], 1, f_1, &buffer_x[0], 1);
+                                        blas::gemv(cblas_layout, CblasTrans, nn, mm, f_1, &buffer_a[0], lda, &y[bi * bs], 1, f_1, &buffer_x[0], 1);
                                     }
                                     else
                                     {
                                         const std::size_t lda = (L == matrix_layout::rowmajor ? nn : mm);
-                                        gemv(cblas_layout, CblasNoTrans, mm, nn, f_1, &buffer_a[0], lda, &y[bi * bs], 1, f_1, &buffer_x[0], 1);
+                                        blas::gemv(cblas_layout, CblasNoTrans, mm, nn, f_1, &buffer_a[0], lda, &y[bi * bs], 1, f_1, &buffer_x[0], 1);
                                     }
                                 }
                             }
@@ -1336,7 +1366,7 @@ namespace FP_NAMESPACE
                             fp_stream<BM, BE>::decompress(&compressed_data[k], &buffer_a[0], (mm * (mm + 1)) / 2);
 
                             // apply triangular solve 
-                            tpsv(cblas_layout, (MT == triangular_matrix_type::upper ? CblasUpper : CblasLower), (transpose ? CblasTrans : CblasNoTrans), CblasNonUnit, mm, &buffer_a[0], &y[bj * bs], 1);
+                            blas::tpsv(cblas_layout, (MT == triangular_matrix_type::upper ? CblasUpper : CblasLower), (transpose ? CblasTrans : CblasNoTrans), CblasNonUnit, mm, &buffer_a[0], &y[bj * bs], 1);
                         }
                     }
                     else if ((!transpose && MT == triangular_matrix_type::upper) ||
@@ -1377,11 +1407,11 @@ namespace FP_NAMESPACE
                                     }
                                     if (transpose)
                                     {
-                                        gemv(L, true, nn, mm, &tmp_a[0], &y[bi * bs], &tmp_x[0]);
+                                        blas::gemv(L, true, nn, mm, &tmp_a[0], &y[bi * bs], &tmp_x[0]);
                                     }
                                     else
                                     {
-                                        gemv(L, false, mm, nn, &tmp_a[0], &y[bi * bs], &tmp_x[0]);
+                                        blas::gemv(L, false, mm, nn, &tmp_a[0], &y[bi * bs], &tmp_x[0]);
                                     }
                                     // ..finalize gemm call: rescaling
                                     const T a = rescale_p_1 * rescale_p_4;
@@ -1402,12 +1432,12 @@ namespace FP_NAMESPACE
                                     if (transpose)
                                     {
                                         const std::size_t lda = (L == matrix_layout::rowmajor ? mm : nn);
-                                        gemv(cblas_layout, CblasTrans, nn, mm, f_1, &buffer_a[0], lda, &y[bi * bs], 1, f_1, &buffer_x[0], 1);
+                                        blas::gemv(cblas_layout, CblasTrans, nn, mm, f_1, &buffer_a[0], lda, &y[bi * bs], 1, f_1, &buffer_x[0], 1);
                                     }
                                     else
                                     {
                                         const std::size_t lda = (L == matrix_layout::rowmajor ? nn : mm);
-                                        gemv(cblas_layout, CblasNoTrans, mm, nn, f_1, &buffer_a[0], lda, &y[bi * bs], 1, f_1, &buffer_x[0], 1);
+                                        blas::gemv(cblas_layout, CblasNoTrans, mm, nn, f_1, &buffer_a[0], lda, &y[bi * bs], 1, f_1, &buffer_x[0], 1);
                                     }
                                 }
 
@@ -1427,7 +1457,7 @@ namespace FP_NAMESPACE
                             fp_stream<BM, BE>::decompress(&compressed_data[k], &buffer_a[0], (mm * (mm + 1)) / 2);
 
                             // apply triangular solve 
-                            tpsv(cblas_layout, (MT == triangular_matrix_type::upper ? CblasUpper : CblasLower), (transpose ? CblasTrans : CblasNoTrans), CblasNonUnit, mm, &buffer_a[0], &y[bj * bs], 1);
+                            blas::tpsv(cblas_layout, (MT == triangular_matrix_type::upper ? CblasUpper : CblasLower), (transpose ? CblasTrans : CblasNoTrans), CblasNonUnit, mm, &buffer_a[0], &y[bj * bs], 1);
 
                             if (bj == 0)
                             {
@@ -1446,6 +1476,16 @@ namespace FP_NAMESPACE
             }
 
             void solve(const bool transpose, const T alpha, std::vector<T>& x, const std::vector<T>& y) const
+            {
+                solve(transpose, alpha, &x[0], &y[0]);
+            }
+
+            void tpsv(const bool transpose, const T alpha, T* x, const T* y) const
+            {
+                solve(transpose, alpha, x, y);
+            }
+
+            void tpsv(const bool transpose, const T alpha, std::vector<T>& x, const std::vector<T>& y) const
             {
                 solve(transpose, alpha, &x[0], &y[0]);
             }
