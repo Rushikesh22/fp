@@ -40,10 +40,10 @@ static constexpr CBLAS_LAYOUT layout = (L == fw::blas::matrix_layout::rowmajor ?
 // compressed matrix data type
 #if defined(UPPER_MATRIX)
 constexpr bool upper_matrix = true;
-using fp_matrix = typename fw::blas::triangular_matrix<real_t, L, fw::blas::triangular_matrix_type::upper, BE, BM>;
+using fp_matrix = typename fw::blas::triangular_matrix<real_t, L, fw::blas::triangular_matrix_type::upper, BM, BE>;
 #else
 constexpr bool upper_matrix = false;
-using fp_matrix = typename fw::blas::triangular_matrix<real_t, L, fw::blas::triangular_matrix_type::lower, BE, BM>;
+using fp_matrix = typename fw::blas::triangular_matrix<real_t, L, fw::blas::triangular_matrix_type::lower, BM, BE>;
 #endif
 
 void blas_triangular_solve(const bool transpose, const std::size_t n, const real_t alpha, const std::vector<real_t>& a, std::vector<real_t>& x, const std::vector<real_t>& y);
