@@ -572,22 +572,32 @@ namespace FP_NAMESPACE
                 matrix_vector(transpose, alpha, &x[0], beta, &y[0]);
             }
 
-            void gemv(const bool transpose, const T alpha, const T* x, const T beta, T* y) const
+            virtual void gemv(const bool transpose, const T alpha, const T* x, const T beta, T* y) const
             {
                 matrix_vector(transpose, alpha, x, beta, y);
             }
             
-            void gemv(const bool transpose, const T alpha, const std::vector<T>& x, const T beta, std::vector<T>& y) const
+            virtual void gemv(const bool transpose, const T alpha, const std::vector<T>& x, const T beta, std::vector<T>& y) const
             {
                 matrix_vector(transpose, alpha, &x[0], beta, &y[0]);
             }
 
-            void symmetric_matrix_vector(const T alpha, const T* x, const T beta, T* y) const
+            virtual void symmetric_matrix_vector(const T alpha, const T* x, const T beta, T* y) const
             {
                 // TODO remove this somehow
             }
 
-            void symmetric_matrix_vector(const T alpha, const std::vector<T>& x, const T beta, std::vector<T>& y) const
+            virtual void symmetric_matrix_vector(const T alpha, const std::vector<T>& x, const T beta, std::vector<T>& y) const
+            {
+                // TODO remove this somehow
+            }
+
+            virtual void spmv(const T alpha, const T* x, const T beta, T* y) const
+            {
+                // TODO remove this somehow
+            }
+
+            virtual void spmv(const T alpha, const std::vector<T>& x, const T beta, std::vector<T>& y) const
             {
                 // TODO remove this somehow
             }
@@ -1124,6 +1134,16 @@ namespace FP_NAMESPACE
             virtual void matrix_vector(const bool transpose, const T alpha, const std::vector<T>& x, const T beta, std::vector<T>& y) const
             {
                 matrix_vector(transpose, alpha, &x[0], beta, &y[0]);
+            }
+
+            virtual void gemv(const bool transpose, const T alpha, const T* x, const T beta, T* y) const
+            {
+                // TODO remove this somehow
+            }
+
+            virtual void gemv(const bool transpose, const T alpha, const std::vector<T>& x, const T beta, std::vector<T>& y) const
+            {
+                // TODO remove this somehow
             }
 
             virtual void tpmv(const bool transpose, const T alpha, const T* x, const T beta, T* y) const
