@@ -121,7 +121,7 @@ int main(int argc, char** argv)
         }
 
         std::array<std::size_t, 1> extent({n});
-        a_compressed.emplace_back(a[k], extent, n, bs);
+        a_compressed.emplace_back(a[k], n, extent, bs);
 
         y_ref[k].reserve(n);
         y[k].reserve(n);

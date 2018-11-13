@@ -20,105 +20,107 @@
 
 namespace FP_NAMESPACE
 {
-    //! \brief Get maximum
-    //!
-    //! \tparam T data type
-    //! \param in pointer to the input stream
-    //! \param n length of the input stream
-    //! \return maximum
-    template <typename T>
-    static inline T scan_max(const T* in, const std::size_t n)
+    namespace internal
     {
-        if (n == 0)
+        //! \brief Get maximum
+        //!
+        //! \tparam T data type
+        //! \param in pointer to the input stream
+        //! \param n length of the input stream
+        //! \return maximum
+        template <typename T>
+        static inline T scan_max(const T* in, const std::size_t n)
         {
-            return 0;
+            if (n == 0)
+            {
+                return 0;
+            }
+
+            T maximum = in[0];
+            #pragma omp simd reduction(max : maximum)
+            for (std::size_t i = 0; i < n; ++i)
+            {
+                maximum = std::max(maximum, in[i]);
+            }
+
+            return maximum;
         }
 
-        T maximum = in[0];
-        #pragma omp simd reduction(max : maximum)
-        for (std::size_t i = 0; i < n; ++i)
+        //! \brief Get absolute maximum
+        //!
+        //! \tparam T data type
+        //! \param in pointer to the input stream
+        //! \param n length of the input stream
+        //! \return absolute maximum
+        template <typename T>
+        static inline T scan_absmax(const T* in, const std::size_t n)
         {
-            maximum = std::max(maximum, in[i]);
+            if (n == 0)
+            {
+                return 0;
+            }
+
+            T maximum = in[0];
+
+            #pragma omp simd reduction(max : maximum)
+            for (std::size_t i = 0; i < n; ++i)
+            {
+                maximum = std::max(maximum, std::abs(in[i]));
+            }
+
+            return maximum;
         }
 
-        return maximum;
+        //! \brief Get minimum
+        //!
+        //! \tparam T data type
+        //! \param in pointer to the input stream
+        //! \param n length of the input stream
+        //! \return minimum
+        template <typename T>
+        static inline T scan_min(const T* in, const std::size_t n)
+        {
+            if (n == 0)
+            {
+                return 0;
+            }
+
+            T minimum = in[0];
+        
+            #pragma omp simd reduction(min : minimum)
+            for (std::size_t i = 0; i < n; ++i)
+            {
+                minimum = std::min(minimum, in[i]);
+            }
+
+            return minimum;
+        }
+
+        //! \brief Get absolute minimum
+        //!
+        //! \tparam T data type
+        //! \param in pointer to the input stream
+        //! \param n length of the input stream
+        //! \return absolute minimum
+        template <typename T>
+        static inline T scan_absmin(const T* in, const std::size_t n)
+        {
+            if (n == 0)
+            {
+                return 0;
+            }
+
+            T minimum = in[0];
+
+            #pragma omp simd reduction(min : minimum)
+            for (std::size_t i = 0; i < n; ++i)
+            {
+                minimum = std::min(minimum, std::abs(in[i]));
+            }
+
+            return minimum;
+        }
     }
-
-    //! \brief Get absolute maximum
-    //!
-    //! \tparam T data type
-    //! \param in pointer to the input stream
-    //! \param n length of the input stream
-    //! \return absolute maximum
-    template <typename T>
-    static inline T scan_absmax(const T* in, const std::size_t n)
-    {
-        if (n == 0)
-        {
-            return 0;
-        }
-
-        T maximum = in[0];
-
-        #pragma omp simd reduction(max : maximum)
-        for (std::size_t i = 0; i < n; ++i)
-        {
-   	        maximum = std::max(maximum, std::abs(in[i]));
-        }
-
-        return maximum;
-    }
-
-    //! \brief Get minimum
-    //!
-    //! \tparam T data type
-    //! \param in pointer to the input stream
-    //! \param n length of the input stream
-    //! \return minimum
-    template <typename T>
-    static inline T scan_min(const T* in, const std::size_t n)
-    {
-        if (n == 0)
-        {
-            return 0;
-        }
-
-        T minimum = in[0];
-    
-        #pragma omp simd reduction(min : minimum)
-        for (std::size_t i = 0; i < n; ++i)
-        {
-            minimum = std::min(minimum, in[i]);
-        }
-
-        return minimum;
-    }
-
-    //! \brief Get absolute minimum
-    //!
-    //! \tparam T data type
-    //! \param in pointer to the input stream
-    //! \param n length of the input stream
-    //! \return absolute minimum
-    template <typename T>
-    static inline T scan_absmin(const T* in, const std::size_t n)
-    {
-        if (n == 0)
-        {
-            return 0;
-        }
-
-        T minimum = in[0];
-
-        #pragma omp simd reduction(min : minimum)
-        for (std::size_t i = 0; i < n; ++i)
-        {
-            minimum = std::min(minimum, std::abs(in[i]));
-        }
-
-        return minimum;
-    }
-
 
     //! \brief Bits IEEE754
     //!
@@ -140,82 +142,84 @@ namespace FP_NAMESPACE
         static constexpr std::uint32_t be = 8;
     };
 
-    //! \brief Test for IEEE754 double type (default=false)
-    //!
-    //! \tparam BM bits mantissa
-    //! \tparam BE bits exponent
-    template <std::uint32_t BM, std::uint32_t BE>
-    struct is_ieee754_double_type
+    namespace internal
     {
-        static constexpr bool value = false;
-    };
+        //! \brief Test for IEEE754 double type (default=false)
+        //!
+        //! \tparam BM bits mantissa
+        //! \tparam BE bits exponent
+        template <std::uint32_t BM, std::uint32_t BE>
+        struct is_ieee754_double_type
+        {
+            static constexpr bool value = false;
+        };
 
-    template <>
-    struct is_ieee754_double_type<ieee754_fp<double>::bm, ieee754_fp<double>::be>
-    {
-        static constexpr bool value = true;
-    };
+        template <>
+        struct is_ieee754_double_type<ieee754_fp<double>::bm, ieee754_fp<double>::be>
+        {
+            static constexpr bool value = true;
+        };
 
-    //! \brief Test for IEEE754 single type (default=false)
-    //!
-    //! \tparam BM bits mantissa
-    //! \tparam BE bits exponent
-    template <std::uint32_t BM, std::uint32_t BE>
-    struct is_ieee754_single_type
-    {
-        static constexpr bool value = false;
-    };
-    
-    template <>
-    struct is_ieee754_single_type<ieee754_fp<float>::bm, ieee754_fp<float>::be>
-    {
-        static constexpr bool value = true;
-    };
+        //! \brief Test for IEEE754 single type (default=false)
+        //!
+        //! \tparam BM bits mantissa
+        //! \tparam BE bits exponent
+        template <std::uint32_t BM, std::uint32_t BE>
+        struct is_ieee754_single_type
+        {
+            static constexpr bool value = false;
+        };
+        
+        template <>
+        struct is_ieee754_single_type<ieee754_fp<float>::bm, ieee754_fp<float>::be>
+        {
+            static constexpr bool value = true;
+        };
 
+        //! \brief Test for IEEE754 double or single type
+        //!
+        //! \tparam BM bits mantissa
+        //! \tparam BE bits exponent
+        template <std::uint32_t BM, std::uint32_t BE>
+        struct is_ieee754_fp_type
+        {
+            static constexpr bool value = is_ieee754_double_type<BM, BE>::value || is_ieee754_single_type<BM, BE>::value;
+        };
 
-    //! \brief Test for IEEE754 double or single type
-    //!
-    //! \tparam BM bits mantissa
-    //! \tparam BE bits exponent
-    template <std::uint32_t BM, std::uint32_t BE>
-    struct is_ieee754_fp_type
-    {
-        static constexpr bool value = is_ieee754_double_type<BM, BE>::value || is_ieee754_single_type<BM, BE>::value;
-    };
+        //! \brief Test for bfloat16 type
+        //!
+        //! \tparam BM bits mantissa
+        //! \tparam BE bits exponent
+        template <std::uint32_t BM, std::uint32_t BE>
+        struct is_bfloat16_fp_type
+        {
+            static constexpr bool value = false;
+        };
 
-    //! \brief Test for bfloat16 type
-    //!
-    //! \tparam BM bits mantissa
-    //! \tparam BE bits exponent
-    template <std::uint32_t BM, std::uint32_t BE>
-    struct is_bfloat16_fp_type
-    {
-        static constexpr bool value = false;
-    };
+        template <>
+        struct is_bfloat16_fp_type<7, 8>
+        {
+            static constexpr bool value = true;
+        };
 
-    template <>
-    struct is_bfloat16_fp_type<7, 8>
-    {
-        static constexpr bool value = true;
-    };
+        //! \brief Test for fixed point type
+        //!
+        //! Fixed point only if BE=0 
+        //! 
+        //! \tparam BM bits mantissa
+        //! \tparam BE bits exponent
+        template <std::uint32_t BM, std::uint32_t BE>
+        struct is_fixed_point_type
+        {
+            static constexpr bool value = false;
+        };
 
-    //! \brief Test for fixed point type
-    //!
-    //! Fixed point only if BE=0 
-    //! 
-    //! \tparam BM bits mantissa
-    //! \tparam BE bits exponent
-    template <std::uint32_t BM, std::uint32_t BE>
-    struct is_fixed_point_type
-    {
-        static constexpr bool value = false;
-    };
-
-    template <std::uint32_t BM>
-    struct is_fixed_point_type<BM, 0>
-    {
-        static constexpr bool value = true;
-    };
+        template <std::uint32_t BM>
+        struct is_fixed_point_type<BM, 0>
+        {
+            static constexpr bool value = true;
+        };
+    }
 
     //! \brief Floating / fixed point data stream
     //! 
@@ -226,6 +230,8 @@ namespace FP_NAMESPACE
     {
         static constexpr bool is_supported()
         {
+            using namespace internal;
+
             // which BM and BE parameters are supported?
             return is_ieee754_fp_type<BM, BE>::value || (BM > 0 && BE > 0 && (BM + BE) < 16) || (BM > 0 && BM <= 16 && BE == 0);
         }
@@ -237,7 +243,7 @@ namespace FP_NAMESPACE
 
     public:
 
-        static constexpr bool is_fixed_point_type = is_fixed_point_type<BM, BE>::value;
+        static constexpr bool is_fixed_point_type = internal::is_fixed_point_type<BM, BE>::value;
 
         static constexpr std::uint32_t bm = BM;
         static constexpr std::uint32_t be = BE;
@@ -254,13 +260,9 @@ namespace FP_NAMESPACE
 
         // all non-IEEE754 floating point types are represented internally through integer-typed packages:
         // packages hold as many compressed floating point numbers as possible
-        /*
-        using type = typename std::conditional<is_ieee754_double_type<BM, BE>::value, double, 
-                     typename std::conditional<is_ieee754_single_type<BM, BE>::value, float, pack_t>::type>::type;                     
-        */
-        using type = typename std::conditional<is_ieee754_double_type<BM, BE>::value, double, 
-                     typename std::conditional<is_ieee754_single_type<BM, BE>::value, float,
-                     typename std::conditional<is_bfloat16_fp_type<BM, BE>::value, std::uint16_t, pack_t>::type>::type>::type;
+        using type = typename std::conditional<internal::is_ieee754_double_type<BM, BE>::value, double, 
+                     typename std::conditional<internal::is_ieee754_single_type<BM, BE>::value, float,
+                     typename std::conditional<internal::is_bfloat16_fp_type<BM, BE>::value, std::uint16_t, pack_t>::type>::type>::type;
 
         // destructor
         ~fp_stream() { ; }
@@ -273,6 +275,8 @@ namespace FP_NAMESPACE
         //! \return number of bytes
         static std::size_t memory_footprint_bytes(const std::size_t n)
         {
+            using namespace internal;
+
             if (n == 0) return 0;
 
             if (is_ieee754_fp_type<BM, BE>::value || is_bfloat16_fp_type<BM, BE>::value)
@@ -299,6 +303,8 @@ namespace FP_NAMESPACE
         //! \return number of elements (packages)
         static std::size_t memory_footprint_elements(const std::size_t n)
         {        
+            using namespace internal;
+
             if (is_ieee754_fp_type<BM, BE>::value || is_bfloat16_fp_type<BM, BE>::value)
             {
                 // IEEE754 floating point numbers or bfloat16
@@ -323,6 +329,8 @@ namespace FP_NAMESPACE
         template <typename T>
         static void compress(const T* in, type* out, const std::size_t n)
         {
+            using namespace internal;
+
             static_assert(std::is_floating_point<T>::value, "error: only floating numbers are allowed");
             static_assert(BE > 0, "error: cannot compress to fixed point");
 
@@ -432,6 +440,8 @@ namespace FP_NAMESPACE
         template <typename T>
         static void decompress(const type* in, T* out, const std::size_t n)
         {
+            using namespace internal;
+
             static_assert(std::is_floating_point<T>::value, "error: only floating numbers are allowed");
             static_assert(BE > 0, "error: cannot decompress from fixed point");
 
@@ -593,292 +603,295 @@ namespace FP_NAMESPACE
     ////////////////////////////////////////////////////////////////////////////////////
     // HELPER: fixed point
     ////////////////////////////////////////////////////////////////////////////////////
-
-    #if defined(__AVX2__) || defined(__AVX512F__)
-    //! \brief Recode between different data types using SIMD intrinsics
-    //!
-    //! Supported: double <-> uint8_t, uint8_t -> uint[16,32]_t
-    //!
-    //! \tparam T 'in' data type
-    //! \tparam TT 'out' data type
-    //! \param in pointer to the input sequence of type 'T'
-    //! \param out pointer to the output sequence of type 'TT'
-    //! \param n length of the input sequence
-    //! \param a (optional) rescaling factor
-    //! \param b (optional) rescaling factor
-    template <typename T, typename TT>
-    static void recode_simd_intrinsics(const T* in, TT* out, const std::size_t n, const double a = 0.0, const double b = 1.0)
+    namespace internal
     {
-        std::cerr << "error: recode_simd_intrinsics() is not implemented for these data types" << std::endl;
-    }
-
-    template <>
-    inline void recode_simd_intrinsics<double, std::uint8_t>(const double* in, std::uint8_t* out, const std::size_t n, const double a, const double b)
-    {
-        // 32 8-bit words fit into an AVX2 register
-        constexpr std::size_t chunk_size = 32;
-        alignas(32) double buffer_in[chunk_size];
-        alignas(32) std::uint8_t buffer_out[chunk_size];
-
-        for (std::size_t i = 0; i < n; i += chunk_size)
+        #if defined(__AVX2__) || defined(__AVX512F__)
+        //! \brief Recode between different data types using SIMD intrinsics
+        //!
+        //! Supported: double <-> uint8_t, uint8_t -> uint[16,32]_t
+        //!
+        //! \tparam T 'in' data type
+        //! \tparam TT 'out' data type
+        //! \param in pointer to the input sequence of type 'T'
+        //! \param out pointer to the output sequence of type 'TT'
+        //! \param n length of the input sequence
+        //! \param a (optional) rescaling factor
+        //! \param b (optional) rescaling factor
+        template <typename T, typename TT>
+        static void recode_simd_intrinsics(const T* in, TT* out, const std::size_t n, const double a = 0.0, const double b = 1.0)
         {
-            // determine the number of elements to be compressed / packed
-            const bool full_chunk = (std::min(n - i, chunk_size) == chunk_size ? true : false);
-            const double* ptr_in = &in[i];
-            if (!full_chunk)
+            std::cerr << "error: recode_simd_intrinsics() is not implemented for these data types" << std::endl;
+        }
+
+        template <>
+        inline void recode_simd_intrinsics<double, std::uint8_t>(const double* in, std::uint8_t* out, const std::size_t n, const double a, const double b)
+        {
+            // 32 8-bit words fit into an AVX2 register
+            constexpr std::size_t chunk_size = 32;
+            alignas(32) double buffer_in[chunk_size];
+            alignas(32) std::uint8_t buffer_out[chunk_size];
+
+            for (std::size_t i = 0; i < n; i += chunk_size)
             {
-                // we want to read 'chunk_size' contiguous words: load the remainder loop data into the buffer...
-                for (std::size_t ii = 0; ii < (n - i); ++ii)
+                // determine the number of elements to be compressed / packed
+                const bool full_chunk = (std::min(n - i, chunk_size) == chunk_size ? true : false);
+                const double* ptr_in = &in[i];
+                if (!full_chunk)
                 {
-                    buffer_in[ii] = in[i + ii];
+                    // we want to read 'chunk_size' contiguous words: load the remainder loop data into the buffer...
+                    for (std::size_t ii = 0; ii < (n - i); ++ii)
+                    {
+                        buffer_in[ii] = in[i + ii];
+                    }
+                    // and switch to the buffer for reading
+                    ptr_in = &buffer_in[0];
                 }
-                // and switch to the buffer for reading
-                ptr_in = &buffer_in[0];
+                
+                // load 8 chunks of 4 'double' words, for a total of 32 'double's, and convert them to 'float'
+                __m256 v256_in_1 = _mm256_insertf128_ps(_mm256_castps128_ps256(_mm256_cvtpd_ps(_mm256_loadu_pd(reinterpret_cast<const double*>(&ptr_in[0])))),
+                                                        _mm256_cvtpd_ps(_mm256_loadu_pd(reinterpret_cast<const double*>(&ptr_in[4]))), 1);
+                __m256 v256_in_2 = _mm256_insertf128_ps(_mm256_castps128_ps256(_mm256_cvtpd_ps(_mm256_loadu_pd(reinterpret_cast<const double*>(&ptr_in[8])))),
+                                                        _mm256_cvtpd_ps(_mm256_loadu_pd(reinterpret_cast<const double*>(&ptr_in[12]))), 1);
+                __m256 v256_in_3 = _mm256_insertf128_ps(_mm256_castps128_ps256(_mm256_cvtpd_ps(_mm256_loadu_pd(reinterpret_cast<const double*>(&ptr_in[16])))),
+                                                        _mm256_cvtpd_ps(_mm256_loadu_pd(reinterpret_cast<const double*>(&ptr_in[20]))), 1);
+                __m256 v256_in_4 = _mm256_insertf128_ps(_mm256_castps128_ps256(_mm256_cvtpd_ps(_mm256_loadu_pd(reinterpret_cast<const double*>(&ptr_in[24])))),
+                                                        _mm256_cvtpd_ps(_mm256_loadu_pd(reinterpret_cast<const double*>(&ptr_in[28]))), 1);
+
+                // apply the rescaling so that the ouput is within the range 0.0 .. 255.0
+                __m256 v256_unpacked_1 = _mm256_mul_ps(_mm256_sub_ps(v256_in_1, _mm256_set1_ps(a)), _mm256_set1_ps(b));
+                __m256 v256_unpacked_2 = _mm256_mul_ps(_mm256_sub_ps(v256_in_2, _mm256_set1_ps(a)), _mm256_set1_ps(b));
+                __m256 v256_unpacked_3 = _mm256_mul_ps(_mm256_sub_ps(v256_in_3, _mm256_set1_ps(a)), _mm256_set1_ps(b));
+                __m256 v256_unpacked_4 = _mm256_mul_ps(_mm256_sub_ps(v256_in_4, _mm256_set1_ps(a)), _mm256_set1_ps(b));
+
+                // convert to integer and use unsigned saturation for the packing: 32-bits -> 16-bits -> 8-bit
+                __m256i v256_packedlo = _mm256_packus_epi32(_mm256_cvtps_epi32(v256_unpacked_1), _mm256_cvtps_epi32(v256_unpacked_2));
+                __m256i v256_packedhi = _mm256_packus_epi32(_mm256_cvtps_epi32(v256_unpacked_3), _mm256_cvtps_epi32(v256_unpacked_4));
+                // permute the output elements to recover the original order
+                __m256i v256_packed = _mm256_permutevar8x32_epi32(_mm256_packus_epi16(v256_packedlo, v256_packedhi), _mm256_setr_epi32(0, 4, 1, 5, 2, 6, 3, 7));
+
+                // flush the compressed / packed data to the output
+                if (full_chunk)
+                {
+                    _mm256_storeu_si256(reinterpret_cast<__m256i*>(&out[i]), v256_packed);
+                }
+                else
+                {
+                    _mm256_store_si256(reinterpret_cast<__m256i*>(&buffer_out[0]), v256_packed);
+                    for (std::size_t ii = 0; ii < (n - i); ++ii)
+                    {
+                        out[i + ii] = buffer_out[ii];
+                    }
+                }
             }
-            
-            // load 8 chunks of 4 'double' words, for a total of 32 'double's, and convert them to 'float'
-            __m256 v256_in_1 = _mm256_insertf128_ps(_mm256_castps128_ps256(_mm256_cvtpd_ps(_mm256_loadu_pd(reinterpret_cast<const double*>(&ptr_in[0])))),
-                                                    _mm256_cvtpd_ps(_mm256_loadu_pd(reinterpret_cast<const double*>(&ptr_in[4]))), 1);
-            __m256 v256_in_2 = _mm256_insertf128_ps(_mm256_castps128_ps256(_mm256_cvtpd_ps(_mm256_loadu_pd(reinterpret_cast<const double*>(&ptr_in[8])))),
-                                                    _mm256_cvtpd_ps(_mm256_loadu_pd(reinterpret_cast<const double*>(&ptr_in[12]))), 1);
-            __m256 v256_in_3 = _mm256_insertf128_ps(_mm256_castps128_ps256(_mm256_cvtpd_ps(_mm256_loadu_pd(reinterpret_cast<const double*>(&ptr_in[16])))),
-                                                    _mm256_cvtpd_ps(_mm256_loadu_pd(reinterpret_cast<const double*>(&ptr_in[20]))), 1);
-            __m256 v256_in_4 = _mm256_insertf128_ps(_mm256_castps128_ps256(_mm256_cvtpd_ps(_mm256_loadu_pd(reinterpret_cast<const double*>(&ptr_in[24])))),
-                                                    _mm256_cvtpd_ps(_mm256_loadu_pd(reinterpret_cast<const double*>(&ptr_in[28]))), 1);
+        }
 
-            // apply the rescaling so that the ouput is within the range 0.0 .. 255.0
-            __m256 v256_unpacked_1 = _mm256_mul_ps(_mm256_sub_ps(v256_in_1, _mm256_set1_ps(a)), _mm256_set1_ps(b));
-            __m256 v256_unpacked_2 = _mm256_mul_ps(_mm256_sub_ps(v256_in_2, _mm256_set1_ps(a)), _mm256_set1_ps(b));
-            __m256 v256_unpacked_3 = _mm256_mul_ps(_mm256_sub_ps(v256_in_3, _mm256_set1_ps(a)), _mm256_set1_ps(b));
-            __m256 v256_unpacked_4 = _mm256_mul_ps(_mm256_sub_ps(v256_in_4, _mm256_set1_ps(a)), _mm256_set1_ps(b));
+        template <>
+        inline void recode_simd_intrinsics<std::uint8_t, double>(const std::uint8_t* in, double* out, const std::size_t n, const double a, const double b)
+        {
+            // 32 8-bit words fit into an AVX2 register
+            constexpr std::size_t chunk_size = 32;
+            alignas(32) double buffer_out[chunk_size];
 
-            // convert to integer and use unsigned saturation for the packing: 32-bits -> 16-bits -> 8-bit
-            __m256i v256_packedlo = _mm256_packus_epi32(_mm256_cvtps_epi32(v256_unpacked_1), _mm256_cvtps_epi32(v256_unpacked_2));
-            __m256i v256_packedhi = _mm256_packus_epi32(_mm256_cvtps_epi32(v256_unpacked_3), _mm256_cvtps_epi32(v256_unpacked_4));
-            // permute the output elements to recover the original order
-            __m256i v256_packed = _mm256_permutevar8x32_epi32(_mm256_packus_epi16(v256_packedlo, v256_packedhi), _mm256_setr_epi32(0, 4, 1, 5, 2, 6, 3, 7));
-
-            // flush the compressed / packed data to the output
-            if (full_chunk)
+            for (std::size_t i = 0; i < n; i += chunk_size)
             {
-                _mm256_storeu_si256(reinterpret_cast<__m256i*>(&out[i]), v256_packed);
+                // load 256-bit word and permute the elements to match the reordering while unpacking: 
+                // this is always safe if data allocation happened with the 'memory_footprint*' method below
+                __m256i v256_packed = _mm256_permutevar8x32_epi32(_mm256_loadu_si256(reinterpret_cast<const __m256i*>(&in[i])), _mm256_setr_epi32(0, 2, 4, 6, 1, 3, 5, 7));
+                // unpack 8-bit into 16-bit words
+                __m256i v256_unpacked_lo = _mm256_unpacklo_epi8(v256_packed, _mm256_setzero_si256());
+                __m256i v256_unpacked_hi = _mm256_unpackhi_epi8(v256_packed, _mm256_setzero_si256());
+
+                // unpack into 32-bit words
+                __m256i v256_unpacked[4];
+                v256_unpacked[0] = _mm256_unpacklo_epi16(v256_unpacked_lo, _mm256_setzero_si256());
+                v256_unpacked[1] = _mm256_unpackhi_epi16(v256_unpacked_lo, _mm256_setzero_si256());
+                v256_unpacked[2] = _mm256_unpacklo_epi16(v256_unpacked_hi, _mm256_setzero_si256());
+                v256_unpacked[3] = _mm256_unpackhi_epi16(v256_unpacked_hi, _mm256_setzero_si256());
+
+                // determine the number of elements to be unpacked / decompressed
+                const bool full_chunk = (std::min(n - i, chunk_size) == chunk_size ? true : false);
+                // write the output to the buffer in case of the loop remainder
+                double* ptr_out = (full_chunk ? &out[i] : &buffer_out[0]);
+
+                for (std::size_t ii = 0; ii < 4; ++ii)
+                {
+                    // convert 32-bit integers to 'double' and rescale
+                    __m256d tmp_1 = _mm256_fmadd_pd(_mm256_cvtepi32_pd(_mm256_extracti128_si256(v256_unpacked[ii], 0)), _mm256_set1_pd(b), _mm256_set1_pd(a));
+                    __m256d tmp_2 = _mm256_fmadd_pd(_mm256_cvtepi32_pd(_mm256_extracti128_si256(v256_unpacked[ii], 1)), _mm256_set1_pd(b), _mm256_set1_pd(a));
+                    _mm256_storeu_pd(reinterpret_cast<double*>(&ptr_out[ii * 8 + 0]), tmp_1);
+                    _mm256_storeu_pd(reinterpret_cast<double*>(&ptr_out[ii * 8 + 4]), tmp_2);
+                }
+
+                // flush the buffer to the output if necessary
+                if (!full_chunk)
+                {
+                    for (std::size_t ii = 0; ii < (n - i); ++ii)
+                    {
+                        out[i + ii] = buffer_out[ii];
+                    }
+                }
+            }
+        }
+
+        template <>
+        inline void recode_simd_intrinsics<std::uint8_t, std::int32_t>(const std::uint8_t* in, std::int32_t* out, const std::size_t n, const double a, const double b)
+        {
+            // 32 8-bit words fit into an AVX2 register
+            constexpr std::size_t chunk_size = 32;
+            alignas(32) std::int32_t buffer_out[chunk_size];
+
+            for (std::size_t i = 0; i < n; i += chunk_size)
+            {
+                // load 256-bit word and permute the elements to match the reordering while unpacking: 
+                // this is always safe if data allocation happened with the 'memory_footprint*' method below
+                __m256i v256_packed = _mm256_permutevar8x32_epi32(_mm256_loadu_si256(reinterpret_cast<const __m256i*>(&in[i])), _mm256_setr_epi32(0, 2, 4, 6, 1, 3, 5, 7));
+                // unpack 8-bit into 16-bit words
+                __m256i v256_unpacked_lo = _mm256_unpacklo_epi8(v256_packed, _mm256_setzero_si256());
+                __m256i v256_unpacked_hi = _mm256_unpackhi_epi8(v256_packed, _mm256_setzero_si256());
+
+                // unpack into 32-bit words
+                __m256i v256_unpacked[4];
+                v256_unpacked[0] = _mm256_unpacklo_epi16(v256_unpacked_lo, _mm256_setzero_si256());
+                v256_unpacked[1] = _mm256_unpackhi_epi16(v256_unpacked_lo, _mm256_setzero_si256());
+                v256_unpacked[2] = _mm256_unpacklo_epi16(v256_unpacked_hi, _mm256_setzero_si256());
+                v256_unpacked[3] = _mm256_unpackhi_epi16(v256_unpacked_hi, _mm256_setzero_si256());
+
+                // determine the number of elements to be unpacked / decompressed
+                const bool full_chunk = (std::min(n - i, chunk_size) == chunk_size ? true : false);
+                // write the output to the buffer in case of the loop remainder
+                std::int32_t* ptr_out = (full_chunk ? &out[i] : &buffer_out[0]);
+
+                // output the 32-bit integers WITHOUT converting to 'double'
+                _mm256_storeu_si256(reinterpret_cast<__m256i*>(&ptr_out[0]), v256_unpacked[0]);
+                _mm256_storeu_si256(reinterpret_cast<__m256i*>(&ptr_out[8]), v256_unpacked[1]);
+                _mm256_storeu_si256(reinterpret_cast<__m256i*>(&ptr_out[16]), v256_unpacked[2]);
+                _mm256_storeu_si256(reinterpret_cast<__m256i*>(&ptr_out[24]), v256_unpacked[3]);
+
+                // flush the buffer to the output if necessary
+                if (!full_chunk)
+                {
+                    for (std::size_t ii = 0; ii < (n - i); ++ii)
+                    {
+                        out[i + ii] = buffer_out[ii];
+                    }
+                }
+            }
+        }
+
+        template <>
+        inline void recode_simd_intrinsics<std::uint8_t, std::int16_t>(const std::uint8_t* in, std::int16_t* out, const std::size_t n, const double a, const double b)
+        {
+            // 32 8-bit words fit into an AVX2 register
+            constexpr std::size_t chunk_size = 32;
+            alignas(32) std::int16_t buffer_out[chunk_size];
+
+            for (std::size_t i = 0; i < n; i += chunk_size)
+            {
+                // load 256-bit word and permute the elements to match the reordering while unpacking: 
+                // this is always safe if data allocation happened with the 'memory_footprint*' method below
+                __m256i v256_packed = _mm256_permutevar8x32_epi32(_mm256_loadu_si256(reinterpret_cast<const __m256i*>(&in[i])), _mm256_setr_epi32(0, 1, 4, 5, 2, 3, 6, 7));
+                // unpack 8-bit into 16-bit words
+                __m256i v256_unpacked_lo = _mm256_unpacklo_epi8(v256_packed, _mm256_setzero_si256());
+                __m256i v256_unpacked_hi = _mm256_unpackhi_epi8(v256_packed, _mm256_setzero_si256());
+
+                // determine the number of elements to be unpacked / decompressed
+                const bool full_chunk = (std::min(n - i, chunk_size) == chunk_size ? true : false);
+                // write the output to the buffer in case of the loop remainder
+                std::int16_t* ptr_out = (full_chunk ? &out[i] : &buffer_out[0]);
+
+                // output the 16-bit integers WITHOUT any further conversion
+                _mm256_storeu_si256(reinterpret_cast<__m256i*>(&ptr_out[0]), v256_unpacked_lo);
+                _mm256_storeu_si256(reinterpret_cast<__m256i*>(&ptr_out[16]), v256_unpacked_hi);
+                
+                // flush the buffer to the output if necessary
+                if (!full_chunk)
+                {
+                    for (std::size_t ii = 0; ii < (n - i); ++ii)
+                    {
+                        out[i + ii] = buffer_out[ii];
+                    }
+                }
+            }
+        }
+        #endif
+
+
+        //! \brief Encode floating point into fixed point numbers
+        //!
+        //! \tparam T floating point data type
+        //! \tparam TT 'out' data type
+        //! \param in pointer to the input sequence
+        //! \param out pointer to the output sequence
+        //! \param n length of the input sequence
+        //! \param a rescaling factor
+        //! \param b rescaling factor
+        template <typename T, typename TT>
+        static void encode_fixed_point_kernel(const T* in, TT* out, const std::size_t n, const T a, const T b)
+        {
+            static_assert(std::is_floating_point<T>::value, "error: only floating point numbers are allowed as input");
+            static_assert(std::is_integral<TT>::value, "error: only integers are allowed as output");
+
+            if (n == 0) return;
+            
+            // the scaling parameters 'a' and 'b' are stored together with the output bitstream
+            float* fptr_out = reinterpret_cast<float*>(out);
+            fptr_out[0] = static_cast<float>(a);
+            fptr_out[1] = static_cast<float>(1.0 / b);
+            TT* ptr_out = reinterpret_cast<TT*>(&fptr_out[2]);
+            
+            #if defined(__AVX2__) || defined(__AVX512F__)
+            // use SIMD intrinsics for the recoding only in case of 8-bit fixed point representation
+            constexpr bool use_simd_intrinsics = std::is_same<TT, std::uint8_t>::value;
+            if (use_simd_intrinsics)
+            {
+                recode_simd_intrinsics<T, TT>(in, ptr_out, n, a, b);
             }
             else
+            #endif
             {
-                _mm256_store_si256(reinterpret_cast<__m256i*>(&buffer_out[0]), v256_packed);
-                for (std::size_t ii = 0; ii < (n - i); ++ii)
+                #pragma omp simd
+                for (std::size_t i = 0; i < n; ++i)
                 {
-                    out[i + ii] = buffer_out[ii];
+                    ptr_out[i] = (in[i] - a) * b;
                 }
             }
         }
-    }
 
-    template <>
-    inline void recode_simd_intrinsics<std::uint8_t, double>(const std::uint8_t* in, double* out, const std::size_t n, const double a, const double b)
-    {
-        // 32 8-bit words fit into an AVX2 register
-        constexpr std::size_t chunk_size = 32;
-        alignas(32) double buffer_out[chunk_size];
-
-        for (std::size_t i = 0; i < n; i += chunk_size)
+        //! \brief Encode floating point into fixed point numbers
+        //!
+        //! \tparam T 'in' data type
+        //! \tparam TT floating point data type
+        //! \param in pointer to the input sequence
+        //! \param out pointer to the output sequence
+        //! \param n length of the input sequence
+        template <typename T, typename TT>
+        static void decode_fixed_point_kernel(const T* in, TT* out, const std::size_t n)
         {
-            // load 256-bit word and permute the elements to match the reordering while unpacking: 
-            // this is always safe if data allocation happened with the 'memory_footprint*' method below
-            __m256i v256_packed = _mm256_permutevar8x32_epi32(_mm256_loadu_si256(reinterpret_cast<const __m256i*>(&in[i])), _mm256_setr_epi32(0, 2, 4, 6, 1, 3, 5, 7));
-            // unpack 8-bit into 16-bit words
-            __m256i v256_unpacked_lo = _mm256_unpacklo_epi8(v256_packed, _mm256_setzero_si256());
-            __m256i v256_unpacked_hi = _mm256_unpackhi_epi8(v256_packed, _mm256_setzero_si256());
+            static_assert(std::is_integral<T>::value, "error: only integers are allowed as input");
+            static_assert(std::is_floating_point<TT>::value, "error: only floating point numbers are allowed as output");
 
-            // unpack into 32-bit words
-            __m256i v256_unpacked[4];
-            v256_unpacked[0] = _mm256_unpacklo_epi16(v256_unpacked_lo, _mm256_setzero_si256());
-            v256_unpacked[1] = _mm256_unpackhi_epi16(v256_unpacked_lo, _mm256_setzero_si256());
-            v256_unpacked[2] = _mm256_unpacklo_epi16(v256_unpacked_hi, _mm256_setzero_si256());
-            v256_unpacked[3] = _mm256_unpackhi_epi16(v256_unpacked_hi, _mm256_setzero_si256());
-
-            // determine the number of elements to be unpacked / decompressed
-            const bool full_chunk = (std::min(n - i, chunk_size) == chunk_size ? true : false);
-            // write the output to the buffer in case of the loop remainder
-            double* ptr_out = (full_chunk ? &out[i] : &buffer_out[0]);
-
-            for (std::size_t ii = 0; ii < 4; ++ii)
-            {
-                // convert 32-bit integers to 'double' and rescale
-                __m256d tmp_1 = _mm256_fmadd_pd(_mm256_cvtepi32_pd(_mm256_extracti128_si256(v256_unpacked[ii], 0)), _mm256_set1_pd(b), _mm256_set1_pd(a));
-                __m256d tmp_2 = _mm256_fmadd_pd(_mm256_cvtepi32_pd(_mm256_extracti128_si256(v256_unpacked[ii], 1)), _mm256_set1_pd(b), _mm256_set1_pd(a));
-                _mm256_storeu_pd(reinterpret_cast<double*>(&ptr_out[ii * 8 + 0]), tmp_1);
-                _mm256_storeu_pd(reinterpret_cast<double*>(&ptr_out[ii * 8 + 4]), tmp_2);
-            }
-
-            // flush the buffer to the output if necessary
-            if (!full_chunk)
-            {
-                for (std::size_t ii = 0; ii < (n - i); ++ii)
-                {
-                    out[i + ii] = buffer_out[ii];
-                }
-            }
-        }
-    }
-
-    template <>
-    inline void recode_simd_intrinsics<std::uint8_t, std::int32_t>(const std::uint8_t* in, std::int32_t* out, const std::size_t n, const double a, const double b)
-    {
-        // 32 8-bit words fit into an AVX2 register
-        constexpr std::size_t chunk_size = 32;
-        alignas(32) std::int32_t buffer_out[chunk_size];
-
-        for (std::size_t i = 0; i < n; i += chunk_size)
-        {
-            // load 256-bit word and permute the elements to match the reordering while unpacking: 
-            // this is always safe if data allocation happened with the 'memory_footprint*' method below
-            __m256i v256_packed = _mm256_permutevar8x32_epi32(_mm256_loadu_si256(reinterpret_cast<const __m256i*>(&in[i])), _mm256_setr_epi32(0, 2, 4, 6, 1, 3, 5, 7));
-            // unpack 8-bit into 16-bit words
-            __m256i v256_unpacked_lo = _mm256_unpacklo_epi8(v256_packed, _mm256_setzero_si256());
-            __m256i v256_unpacked_hi = _mm256_unpackhi_epi8(v256_packed, _mm256_setzero_si256());
-
-            // unpack into 32-bit words
-            __m256i v256_unpacked[4];
-            v256_unpacked[0] = _mm256_unpacklo_epi16(v256_unpacked_lo, _mm256_setzero_si256());
-            v256_unpacked[1] = _mm256_unpackhi_epi16(v256_unpacked_lo, _mm256_setzero_si256());
-            v256_unpacked[2] = _mm256_unpacklo_epi16(v256_unpacked_hi, _mm256_setzero_si256());
-            v256_unpacked[3] = _mm256_unpackhi_epi16(v256_unpacked_hi, _mm256_setzero_si256());
-
-            // determine the number of elements to be unpacked / decompressed
-            const bool full_chunk = (std::min(n - i, chunk_size) == chunk_size ? true : false);
-            // write the output to the buffer in case of the loop remainder
-            std::int32_t* ptr_out = (full_chunk ? &out[i] : &buffer_out[0]);
-
-            // output the 32-bit integers WITHOUT converting to 'double'
-            _mm256_storeu_si256(reinterpret_cast<__m256i*>(&ptr_out[0]), v256_unpacked[0]);
-            _mm256_storeu_si256(reinterpret_cast<__m256i*>(&ptr_out[8]), v256_unpacked[1]);
-            _mm256_storeu_si256(reinterpret_cast<__m256i*>(&ptr_out[16]), v256_unpacked[2]);
-            _mm256_storeu_si256(reinterpret_cast<__m256i*>(&ptr_out[24]), v256_unpacked[3]);
-
-            // flush the buffer to the output if necessary
-            if (!full_chunk)
-            {
-                for (std::size_t ii = 0; ii < (n - i); ++ii)
-                {
-                    out[i + ii] = buffer_out[ii];
-                }
-            }
-        }
-    }
-
-    template <>
-    inline void recode_simd_intrinsics<std::uint8_t, std::int16_t>(const std::uint8_t* in, std::int16_t* out, const std::size_t n, const double a, const double b)
-    {
-        // 32 8-bit words fit into an AVX2 register
-        constexpr std::size_t chunk_size = 32;
-        alignas(32) std::int16_t buffer_out[chunk_size];
-
-        for (std::size_t i = 0; i < n; i += chunk_size)
-        {
-            // load 256-bit word and permute the elements to match the reordering while unpacking: 
-            // this is always safe if data allocation happened with the 'memory_footprint*' method below
-            __m256i v256_packed = _mm256_permutevar8x32_epi32(_mm256_loadu_si256(reinterpret_cast<const __m256i*>(&in[i])), _mm256_setr_epi32(0, 1, 4, 5, 2, 3, 6, 7));
-            // unpack 8-bit into 16-bit words
-            __m256i v256_unpacked_lo = _mm256_unpacklo_epi8(v256_packed, _mm256_setzero_si256());
-            __m256i v256_unpacked_hi = _mm256_unpackhi_epi8(v256_packed, _mm256_setzero_si256());
-
-            // determine the number of elements to be unpacked / decompressed
-            const bool full_chunk = (std::min(n - i, chunk_size) == chunk_size ? true : false);
-            // write the output to the buffer in case of the loop remainder
-            std::int16_t* ptr_out = (full_chunk ? &out[i] : &buffer_out[0]);
-
-            // output the 16-bit integers WITHOUT any further conversion
-            _mm256_storeu_si256(reinterpret_cast<__m256i*>(&ptr_out[0]), v256_unpacked_lo);
-            _mm256_storeu_si256(reinterpret_cast<__m256i*>(&ptr_out[16]), v256_unpacked_hi);
+            if (n == 0) return;
             
-            // flush the buffer to the output if necessary
-            if (!full_chunk)
+            const float* fptr_in = reinterpret_cast<const float*>(in);
+            const float a = fptr_in[0];
+            const float b = fptr_in[1];
+            
+            #if defined(__AVX2__) || defined(__AVX512F__)
+            constexpr bool use_simd_intrinsics = std::is_same<T, std::uint8_t>::value;
+            if (use_simd_intrinsics)
             {
-                for (std::size_t ii = 0; ii < (n - i); ++ii)
+                recode_simd_intrinsics<std::uint8_t, TT>(reinterpret_cast<const std::uint8_t*>(&fptr_in[2]), out, n, a, b);
+            }
+            else
+            #endif
+            {
+                const T* ptr_in = reinterpret_cast<const T*>(&fptr_in[2]);
+
+                #pragma omp simd
+                for (std::size_t i = 0; i < n; ++i)
                 {
-                    out[i + ii] = buffer_out[ii];
+                    out[i] = ptr_in[i] * b + a;
                 }
-            }
-        }
-    }
-    #endif
-
-    //! \brief Encode floating point into fixed point numbers
-    //!
-    //! \tparam T floating point data type
-    //! \tparam TT 'out' data type
-    //! \param in pointer to the input sequence
-    //! \param out pointer to the output sequence
-    //! \param n length of the input sequence
-    //! \param a rescaling factor
-    //! \param b rescaling factor
-    template <typename T, typename TT>
-    static void encode_fixed_point_kernel(const T* in, TT* out, const std::size_t n, const T a, const T b)
-    {
-        static_assert(std::is_floating_point<T>::value, "error: only floating point numbers are allowed as input");
-        static_assert(std::is_integral<TT>::value, "error: only integers are allowed as output");
-
-        if (n == 0) return;
-        
-        // the scaling parameters 'a' and 'b' are stored together with the output bitstream
-        float* fptr_out = reinterpret_cast<float*>(out);
-        fptr_out[0] = static_cast<float>(a);
-        fptr_out[1] = static_cast<float>(1.0 / b);
-        TT* ptr_out = reinterpret_cast<TT*>(&fptr_out[2]);
-        
-        #if defined(__AVX2__) || defined(__AVX512F__)
-        // use SIMD intrinsics for the recoding only in case of 8-bit fixed point representation
-        constexpr bool use_simd_intrinsics = std::is_same<TT, std::uint8_t>::value;
-        if (use_simd_intrinsics)
-        {
-            recode_simd_intrinsics<T, TT>(in, ptr_out, n, a, b);
-        }
-        else
-        #endif
-        {
-            #pragma omp simd
-            for (std::size_t i = 0; i < n; ++i)
-            {
-                ptr_out[i] = (in[i] - a) * b;
-            }
-        }
-    }
-
-    //! \brief Encode floating point into fixed point numbers
-    //!
-    //! \tparam T 'in' data type
-    //! \tparam TT floating point data type
-    //! \param in pointer to the input sequence
-    //! \param out pointer to the output sequence
-    //! \param n length of the input sequence
-    template <typename T, typename TT>
-    static void decode_fixed_point_kernel(const T* in, TT* out, const std::size_t n)
-    {
-        static_assert(std::is_integral<T>::value, "error: only integers are allowed as input");
-        static_assert(std::is_floating_point<TT>::value, "error: only floating point numbers are allowed as output");
-
-        if (n == 0) return;
-        
-        const float* fptr_in = reinterpret_cast<const float*>(in);
-        const float a = fptr_in[0];
-        const float b = fptr_in[1];
-        
-        #if defined(__AVX2__) || defined(__AVX512F__)
-        constexpr bool use_simd_intrinsics = std::is_same<T, std::uint8_t>::value;
-        if (use_simd_intrinsics)
-        {
-            recode_simd_intrinsics<std::uint8_t, TT>(reinterpret_cast<const std::uint8_t*>(&fptr_in[2]), out, n, a, b);
-        }
-        else
-        #endif
-        {
-            const T* ptr_in = reinterpret_cast<const T*>(&fptr_in[2]);
-
-            #pragma omp simd
-            for (std::size_t i = 0; i < n; ++i)
-            {
-                out[i] = ptr_in[i] * b + a;
             }
         }
     }
@@ -937,6 +950,8 @@ namespace FP_NAMESPACE
         template <typename T>
         static void compress(const T* in, type* out, const std::size_t n)
         {
+            using namespace internal;
+
             if (n == 0) return;
 
             // unsigned integer conversion: [minimum, maximum] -> [0, max_int]
@@ -958,6 +973,8 @@ namespace FP_NAMESPACE
         template <typename T>
         static void decompress(const type* in, T* out, const std::size_t n)
         {
+            using namespace internal;
+
             decode_fixed_point_kernel(in, out, n);
         }
     };

@@ -116,7 +116,7 @@ namespace FP_NAMESPACE
 
             // constructor that can be called by the triangular_matrix constructor
             template <typename TT>
-            matrix(const TT* data, const std::array<std::size_t, 1>& extent, const std::size_t ld_data, triangular_matrix_type MT = triangular_matrix_type::upper, const std::size_t bs = bs_default)
+            matrix(const TT* data, const std::size_t ld_data, const std::array<std::size_t, 1>& extent, triangular_matrix_type MT = triangular_matrix_type::upper, const std::size_t bs = bs_default)
                 :
                 m(extent[0]), // set, but not to be used
                 n(extent[0]),
@@ -260,7 +260,7 @@ namespace FP_NAMESPACE
             matrix() = delete;
 
             template <typename TT>
-            matrix(const TT* data, const std::array<std::size_t, 2>& extent, const std::size_t ld_data, const std::size_t bs = bs_default)
+            matrix(const TT* data, const std::size_t ld_data, const std::array<std::size_t, 2>& extent, const std::size_t bs = bs_default)
                 :
                 m(extent[0]),
                 n(extent[1]),
@@ -286,7 +286,7 @@ namespace FP_NAMESPACE
                     memory.reserve(num_elements);
 
                     // compress the matrix
-                    compress(reinterpret_cast<const T*>(data), &memory[0], extent, ld_data, bs, this);
+                    compress(reinterpret_cast<const T*>(data), ld_data, &memory[0], extent, bs, this);
 
                     // set up the internal pointer to the compressed matrix
                     compressed_data = reinterpret_cast<const fp_type*>(&memory[0]);
@@ -294,9 +294,9 @@ namespace FP_NAMESPACE
             }
 
             template <typename TT>
-            matrix(const std::vector<TT>& data, const std::array<std::size_t, 2>& extent, const std::size_t ld_data, const std::size_t bs = bs_default)
+            matrix(const std::vector<TT>& data, const std::size_t ld_data, const std::array<std::size_t, 2>& extent, const std::size_t bs = bs_default)
                 :
-                matrix(&data[0], extent, ld_data, bs)
+                matrix(&data[0], ld_data, extent, bs)
             {
                 ;
             }
@@ -304,7 +304,7 @@ namespace FP_NAMESPACE
             template <typename TT>
             matrix(const TT* data, const std::array<std::size_t, 2>& extent, const std::size_t bs = bs_default)
                 :
-                matrix(data, extent, 0, bs)
+                matrix(data, 0, extent, bs)
             {
                 if (std::is_same<TT, fp_type>::value)
                 {
@@ -324,7 +324,7 @@ namespace FP_NAMESPACE
                 compressed_data = nullptr;
             }
    
-            static ptrdiff_t compress(const T* data, fp_type* compressed_data, const std::array<std::size_t, 2>& extent, const std::size_t ld_data, const std::size_t bs = bs_default, matrix* mat = nullptr)
+            static ptrdiff_t compress(const T* data, const std::size_t ld_data, fp_type* compressed_data, const std::array<std::size_t, 2>& extent, const std::size_t bs = bs_default, matrix* mat = nullptr)
             {
                 if (data == nullptr || compressed_data == nullptr)
                 {
@@ -380,7 +380,7 @@ namespace FP_NAMESPACE
                 return (ptr - compressed_data);
             }
 
-            static void decompress(const fp_type* compressed_data, T* data, const std::array<std::size_t, 2>& extent, const std::size_t ld_data, const std::size_t bs = bs_default, matrix* mat = nullptr)
+            static void decompress(const fp_type* compressed_data, T* data, const std::size_t ld_data, const std::array<std::size_t, 2>& extent, const std::size_t bs = bs_default, matrix* mat = nullptr)
             {
                 if (data == nullptr || compressed_data == nullptr)
                 {
@@ -441,7 +441,7 @@ namespace FP_NAMESPACE
                     return;
                 }
 
-                decompress(compressed_data, data, std::array<std::size_t, 2>({m, n}), (ld_data == 0 ? (L == matrix_layout::rowmajor ? n : m) : ld_data), bs, this);
+                decompress(compressed_data, data, (ld_data == 0 ? (L == matrix_layout::rowmajor ? n : m) : ld_data), std::array<std::size_t, 2>({m, n}), bs, this);
             }
 
             static std::size_t memory_footprint_elements(const std::array<std::size_t, 2>& extent, const std::size_t bs = bs_default)
@@ -669,9 +669,9 @@ namespace FP_NAMESPACE
             triangular_matrix() = delete;
 
             template <typename TT>
-            triangular_matrix(const TT* data, const std::array<std::size_t, 1>& extent, const std::size_t ld_data, const std::size_t bs = bs_default)
+            triangular_matrix(const TT* data, const std::size_t ld_data, const std::array<std::size_t, 1>& extent, const std::size_t bs = bs_default)
                 :
-                matrix<T, L, BM, BE>(data, extent, ld_data, MT, bs)
+                matrix<T, L, BM, BE>(data, ld_data, extent, MT, bs)
             {
                 if (ld_data > 0)
                 {
@@ -679,7 +679,7 @@ namespace FP_NAMESPACE
                     memory.reserve(num_elements);
 
                     // compress the matrix
-                    compress(reinterpret_cast<const T*>(data), &memory[0], extent, ld_data, bs, this);
+                    compress(reinterpret_cast<const T*>(data), ld_data, &memory[0], extent, bs, this);
 
                     // set up the internal pointer to the compressed matrix
                     compressed_data = reinterpret_cast<const fp_type*>(&memory[0]);
@@ -687,17 +687,25 @@ namespace FP_NAMESPACE
             }
 
             template <typename TT>
-            triangular_matrix(const std::vector<TT>& data, const std::array<std::size_t, 1>& extent, const std::size_t ld_data, const std::size_t bs = bs_default)
+            triangular_matrix(const std::vector<TT>& data, const std::size_t ld_data, const std::array<std::size_t, 1>& extent, const std::size_t bs = bs_default)
                 :
-                triangular_matrix(&data[0], extent, ld_data, bs)
+                triangular_matrix(&data[0], ld_data, extent, bs)
             {
                 ;
             }
 
             template <typename TT>
-            triangular_matrix(const std::vector<TT>& data, const std::array<std::size_t, 2>& extent, const std::size_t ld_data, const std::size_t bs = bs_default)
+            triangular_matrix(const TT* data, const std::size_t ld_data, const std::array<std::size_t, 2>& extent, const std::size_t bs = bs_default)
                 :
-                triangular_matrix(&data[0], std::array<std::size_t, 1>({extent[0]}), ld_data, bs)
+                triangular_matrix(data, ld_data, std::array<std::size_t, 1>({extent[0]}), bs)
+            {
+                ;
+            }
+
+            template <typename TT>
+            triangular_matrix(const std::vector<TT>& data, const std::size_t ld_data, const std::array<std::size_t, 2>& extent, const std::size_t bs = bs_default)
+                :
+                triangular_matrix(&data[0], ld_data, extent, bs)
             {
                 ;
             }
@@ -705,7 +713,7 @@ namespace FP_NAMESPACE
             template <typename TT>
             triangular_matrix(const TT* data, const std::array<std::size_t, 1>& extent, const std::size_t bs = bs_default)
                 :
-                triangular_matrix(data, extent, 0, bs)
+                triangular_matrix(data, 0, extent, bs)
             {
                 if (std::is_same<TT, fp_type>::value)
                 {
@@ -733,7 +741,7 @@ namespace FP_NAMESPACE
                 compressed_data = nullptr; 
             }
 
-            static ptrdiff_t compress(const T* data, fp_type* compressed_data, const std::array<std::size_t, 1>& extent, const std::size_t ld_data, const std::size_t bs = bs_default, triangular_matrix* mat = nullptr)
+            static ptrdiff_t compress(const T* data, const std::size_t ld_data, fp_type* compressed_data, const std::array<std::size_t, 1>& extent, const std::size_t bs = bs_default, triangular_matrix* mat = nullptr)
             {
                 if (data == nullptr || compressed_data == nullptr)
                 {
@@ -816,12 +824,12 @@ namespace FP_NAMESPACE
                 return (ptr - compressed_data);
             }
 
-            static ptrdiff_t compress(const T* data, fp_type* compressed_data, const std::array<std::size_t, 2>& extent, const std::size_t ld_data, const std::size_t bs = bs_default, triangular_matrix* mat = nullptr)
+            static ptrdiff_t compress(const T* data, const std::size_t ld_data, fp_type* compressed_data, const std::array<std::size_t, 2>& extent, const std::size_t bs = bs_default, triangular_matrix* mat = nullptr)
             {
-                return compress(data, compressed_data, std::array<std::size_t, 1>({extent[0]}), ld_data, bs, mat);
+                return compress(data, ld_data, compressed_data, std::array<std::size_t, 1>({extent[0]}), bs, mat);
             }
 
-            static void decompress(const fp_type* compressed_data, T* data, const std::array<std::size_t, 1>& extent, const std::size_t ld_data, const std::size_t bs = bs_default, triangular_matrix* mat = nullptr)
+            static void decompress(const fp_type* compressed_data, T* data, const std::size_t ld_data, const std::array<std::size_t, 1>& extent, const std::size_t bs = bs_default, triangular_matrix* mat = nullptr)
             {
                 if (data == nullptr || compressed_data == nullptr)
                 {
@@ -897,9 +905,9 @@ namespace FP_NAMESPACE
                 }
             }
 
-            static void decompress(const fp_type* compressed_data, T* data, const std::array<std::size_t, 2>& extent, const std::size_t ld_data, const std::size_t bs = bs_default, triangular_matrix* mat = nullptr)
+            static void decompress(const fp_type* compressed_data, T* data, const std::size_t ld_data, const std::array<std::size_t, 2>& extent, const std::size_t bs = bs_default, triangular_matrix* mat = nullptr)
             {
-                decompress(data, compressed_data, std::array<std::size_t, 1>({extent[0]}), ld_data, bs, mat);
+                decompress(compressed_data, data, ld_data, std::array<std::size_t, 1>({extent[0]}), bs, mat);
             }
 
             void decompress(T* data, const std::size_t ld_data = 0)
@@ -914,7 +922,7 @@ namespace FP_NAMESPACE
                     return;
                 }
 
-                decompress(compressed_data, data, std::array<std::size_t, 1>({n}), (ld_data == 0 ? n : ld_data), bs, this);
+                decompress(compressed_data, data, (ld_data == 0 ? n : ld_data), std::array<std::size_t, 1>({n}), bs, this);
             }
 
             static std::size_t memory_footprint_elements(const std::array<std::size_t, 1>& extent, const std::size_t bs = bs_default)

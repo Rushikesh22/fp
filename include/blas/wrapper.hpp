@@ -71,7 +71,7 @@ namespace FP_NAMESPACE
                         for (std::size_t i = 0; i < M; i += inc_i)
                         {
                             const std::size_t ii_max = std::min(M - i, inc_i);
-                            recode_simd_intrinsics<T_1, std::int16_t>(&a[i * N], &buffer_a[0], ii_max * N);
+                            internal::recode_simd_intrinsics<T_1, std::int16_t>(&a[i * N], &buffer_a[0], ii_max * N);
 
                             for (std::size_t ii = 0; ii < ii_max; ++ii)
                             {
@@ -87,7 +87,7 @@ namespace FP_NAMESPACE
                         alignas(32) std::int16_t buffer_a[N];
                         for (std::size_t i = 0; i < M; ++i)
                         {
-                            recode_simd_intrinsics<T_1, std::int16_t>(&a[i * N], &buffer_a[0], N);
+                            internal::recode_simd_intrinsics<T_1, std::int16_t>(&a[i * N], &buffer_a[0], N);
 
                             for (std::size_t j = 0; j < N; ++j)
                             {
@@ -126,7 +126,7 @@ namespace FP_NAMESPACE
                         for (std::size_t j = 0; j < N; j += inc_j)
                         {
                             const std::size_t jj_max = std::min(N - j, inc_j);
-                            recode_simd_intrinsics<T_1, std::int16_t>(&a[j * M], &buffer_a[0], jj_max * M);
+                            internal::recode_simd_intrinsics<T_1, std::int16_t>(&a[j * M], &buffer_a[0], jj_max * M);
 
                             for (std::size_t jj = 0; jj < jj_max; ++jj)
                             {
@@ -144,7 +144,7 @@ namespace FP_NAMESPACE
                         alignas(32) std::int16_t buffer_a[M];
                         for (std::size_t j = 0; j < N; ++j)
                         {
-                            recode_simd_intrinsics<T_1, std::int16_t>(&a[j * M], &buffer_a[0], M);
+                            internal::recode_simd_intrinsics<T_1, std::int16_t>(&a[j * M], &buffer_a[0], M);
 
                             T_2 tmp = 0;
                             for (std::size_t i = 0; i < M; ++i)

@@ -80,7 +80,7 @@ int main(int argc, char** argv)
 
         std::array<std::size_t, 2> extent({m, n});
         const std::size_t lda = (L == fw::blas::matrix_layout::rowmajor ? n : m);
-        a_compressed.emplace_back(a[k], extent, lda, bs);
+        a_compressed.emplace_back(a[k], lda, extent, bs);
 
         const std::size_t mn = std::max(m, n);
         x[k].reserve(mn);
