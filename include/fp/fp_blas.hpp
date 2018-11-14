@@ -19,8 +19,8 @@
 
 namespace FP_NAMESPACE
 {
-	namespace blas
-	{
+    namespace blas
+    {
         //! default alignment: TODO replace by SIMD class alignment
     #if defined(__AVX512F__)
         constexpr std::size_t alignment = 64;
@@ -54,8 +54,8 @@ namespace FP_NAMESPACE
 
 namespace FP_NAMESPACE
 {
-	namespace blas
-	{
+    namespace blas
+    {
         //! matrix types: general, lower triangular, upper triangular
         enum class matrix_type { general = 0, triangular = 1, lower_triangular = 2, upper_triangular = 3 };
 
@@ -112,6 +112,11 @@ namespace FP_NAMESPACE
 
                 if (MT == matrix_type::general)
                 {
+                    //  a a a | b
+                    //  a a a | b
+                    //  a a a | b
+                    // -------+---
+                    //  c c c | d                    
                     const std::size_t num_elements_a = fp_stream<BM, BE>::memory_footprint_elements(bs * bs);
                     const std::size_t num_elements_b = fp_stream<BM, BE>::memory_footprint_elements(bs * (n - (n / bs) * bs));
                     const std::size_t num_elements_c = fp_stream<BM, BE>::memory_footprint_elements((m - (m / bs) * bs) * bs);
@@ -125,6 +130,11 @@ namespace FP_NAMESPACE
                 }
                 else
                 {
+                    //  a b b | c
+                    //  0 a b | c
+                    //  0 0 a | c
+                    // -------+---
+                    //  0 0 0 | d
                     const std::size_t num_elements_a = fp_stream<BM, BE>::memory_footprint_elements((bs * (bs + 1)) / 2);
                     const std::size_t num_elements_b = fp_stream<BM, BE>::memory_footprint_elements(bs * bs);
                     const std::size_t num_elements_c = fp_stream<BM, BE>::memory_footprint_elements(bs * (n - (n / bs) * bs));
@@ -146,11 +156,6 @@ namespace FP_NAMESPACE
                 n(extent[0]),
                 bs(bs),
                 compressed_data(nullptr),
-                //  a b b | c
-                //  0 a b | c
-                //  0 0 a | c
-                // -------+---
-                //  0 0 0 | d
                 partition(make_partition<matrix_type::triangular>({m, n}, bs))
             {
                 ;
@@ -164,10 +169,6 @@ namespace FP_NAMESPACE
                 n(extent[1]),
                 bs(bs),
                 compressed_data(nullptr),
-                //  a a a | b
-                //  a a a | b
-                // -------+---
-                //  c c c | d
                 partition(make_partition<matrix_type::general>({m, n}, bs))
             {
                 ;
