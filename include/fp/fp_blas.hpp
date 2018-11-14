@@ -106,11 +106,8 @@ namespace FP_NAMESPACE
             {
                 const std::size_t m = extent[0];
                 const std::size_t n = extent[1];
-                if (m == 0 || n == 0 || bs == 0)
-                {
-                    return {{}};
-                }
-
+                if (m == 0 || n == 0 || bs == 0) return {{}};
+                
                 if (MT == matrix_type::general)
                 {
                     //  a a a | b
@@ -187,11 +184,8 @@ namespace FP_NAMESPACE
 
                 const std::size_t m = extent[0];
                 const std::size_t n = extent[1];
-                if (m == 0 || n == 0 || bs == 0)
-                {
-                    return 0;
-                }
-
+                if (m == 0 || n == 0 || bs == 0) return 0;
+                
                 constexpr bool upper_rowmajor = (MT == matrix_type::upper_triangular) && (L == matrix_layout::rowmajor);
                 constexpr bool lower_colmajor = (MT == matrix_type::lower_triangular) && (L == matrix_layout::colmajor);
 
@@ -290,11 +284,8 @@ namespace FP_NAMESPACE
 
                 const std::size_t m = extent[0];
                 const std::size_t n = extent[1];
-                if (m == 0 || n == 0 || bs == 0)
-                {
-                    return;
-                }
-
+                if (m == 0 || n == 0 || bs == 0) return;
+                
                 // decompress the matrix block by block
                 constexpr bool upper_rowmajor = (MT == matrix_type::upper_triangular) && (L == matrix_layout::rowmajor);
                 constexpr bool lower_colmajor = (MT == matrix_type::lower_triangular) && (L == matrix_layout::colmajor);
@@ -374,11 +365,8 @@ namespace FP_NAMESPACE
             template <typename F>
             void blas2_frame(const F& kernel, const bool transpose, const T alpha, const T* x, const T beta, T* y) const
             {
-                if (n == 0 || m == 0)
-                {
-                    return;
-                }
-
+                if (n == 0 || m == 0) return;
+                
                 const std::size_t mn = (transpose ? n : m);
 
                 // handle some special cases
@@ -605,11 +593,8 @@ namespace FP_NAMESPACE
     
                 const std::size_t m = extent[0];
                 const std::size_t n = extent[1];
-                if (m == 0 || n == 0 || bs == 0) 
-                {
-                    return 0;
-                }
-
+                if (m == 0 || n == 0 || bs == 0) return 0;
+                
                 const partition_t partition = base_class::template make_partition<matrix_type::general>(extent, bs);
                 return base_class::template compress<matrix_type::general>(data, ld_data, compressed_data, extent, bs, partition);
             }
@@ -624,11 +609,8 @@ namespace FP_NAMESPACE
 
                 const std::size_t m = extent[0];
                 const std::size_t n = extent[1];
-                if (m == 0 || n == 0 || bs == 0) 
-                {
-                    return;
-                }
-            
+                if (m == 0 || n == 0 || bs == 0) return;
+                
                 const partition_t partition = base_class::template make_partition<matrix_type::general>(extent, bs);
                 base_class::template decompress<matrix_type::general>(compressed_data, data, ld_data, extent, bs, partition);
             }
@@ -648,11 +630,8 @@ namespace FP_NAMESPACE
             {
                 const std::size_t m = extent[0];
                 const std::size_t n = extent[1];
-                if (m == 0 || n == 0 || bs == 0)
-                {
-                    return 0;
-                }
-
+                if (m == 0 || n == 0 || bs == 0) return 0;
+                
                 return (base_class::template make_partition<matrix_type::general>(extent, bs)).num_elements;
             }
 
@@ -675,11 +654,8 @@ namespace FP_NAMESPACE
                     return;
                 }
 
-                if (m == 0 || n == 0)
-                {
-                    return;
-                } 
-
+                if (m == 0 || n == 0) return;
+                
                 base_class::blas2_frame([&](const bool transpose, const T alpha, const T* x, T* y)
                 { 
                     // allocate local memory
@@ -932,11 +908,8 @@ namespace FP_NAMESPACE
                 
                 const std::size_t m = extent[0];
                 const std::size_t n = extent[1];
-                if (m == 0 || n == 0 || bs == 0) 
-                {
-                    return 0;
-                }
-
+                if (m == 0 || n == 0 || bs == 0) return 0;
+                
                 const partition_t partition  = base_class::template make_partition<MT>(extent, bs);
                 return base_class::template compress<MT>(data, ld_data, compressed_data, extent, bs, partition);
             }
@@ -951,11 +924,8 @@ namespace FP_NAMESPACE
 
                 const std::size_t m = extent[0];
                 const std::size_t n = extent[1];
-                if (m == 0 || n == 0 || bs == 0) 
-                {
-                    return;
-                }
-
+                if (m == 0 || n == 0 || bs == 0) return;
+                
                 const partition_t partition = base_class::template make_partition<MT>(extent, bs);
                 base_class::template decompress<MT>(compressed_data, data, ld_data, extent, bs, partition);
             }
@@ -979,11 +949,8 @@ namespace FP_NAMESPACE
             {
                 const std::size_t m = extent[0];
                 const std::size_t n = extent[1];
-                if (m == 0 || n == 0 || bs == 0)
-                {
-                    return 0;
-                }
-
+                if (m == 0 || n == 0 || bs == 0) return 0;
+                
                 return (base_class::template make_partition<MT>(extent, bs)).num_elements;
             }
 
@@ -1013,11 +980,8 @@ namespace FP_NAMESPACE
                     return;
                 }
 
-                if (n == 0)
-                {
-                    return;
-                }
-
+                if (n == 0) return;
+                
                 base_class::blas2_frame([&](const bool transpose, const T alpha, const T* x, T* y)
                 { 
                     // allocate local memory
@@ -1174,11 +1138,8 @@ namespace FP_NAMESPACE
                     return;
                 }
 
-                if (n == 0)
-                {
-                    return;
-                }
-
+                if (n == 0) return;
+                
                 base_class::blas2_frame([&](const bool transpose, const T alpha, const T* x, T* y)
                 {
                     // allocate local memory
@@ -1310,11 +1271,8 @@ namespace FP_NAMESPACE
                     return;
                 }
 
-                if (n == 0)
-                {
-                    return;
-                }
-
+                if (n == 0) return;
+                
                 base_class::blas2_frame([&](const bool transpose, const T alpha, const T* x, T* y)
                 {
                     // allocate local memory

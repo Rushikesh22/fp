@@ -19,7 +19,11 @@ namespace FP_NAMESPACE
         template <typename T_1, typename T_2>
         static void gemv(const matrix_layout layout, const bool transpose, const std::size_t m, const std::size_t n, const T_1* a, const T_2* x, T_2* y)
         {
-            
+            if (n == 0) return;
+
+            constexpr T_2 f_0 = static_cast<T_2>(0.0);
+            constexpr T_2 f_1 = static_cast<T_2>(1.0);
+
             if ((transpose && layout == matrix_layout::rowmajor) ||
                 (!transpose && layout == matrix_layout::colmajor))
             {
@@ -28,7 +32,7 @@ namespace FP_NAMESPACE
 
                 for (std::size_t j = 0; j < N; ++j)
                 {
-                    y[j] = 0;
+                    y[j] = f_0;
                 }
 
             #if defined(__AVX2__) || defined(__AVX512F__)
@@ -103,7 +107,7 @@ namespace FP_NAMESPACE
 
                             for (std::size_t jj = 0; jj < jj_max; ++jj)
                             {
-                                T_2 tmp = 0;
+                                T_2 tmp = f_0;
                                 for (std::size_t i = 0; i < M; ++i)
                                 {
                                     tmp += buffer_a[jj * M + i] * x[i];
@@ -119,7 +123,7 @@ namespace FP_NAMESPACE
                         {
                             internal::recode_simd_intrinsics<T_1, std::int16_t>(&a[j * M], &buffer_a[0], M);
 
-                            T_2 tmp = 0;
+                            T_2 tmp = f_0;
                             for (std::size_t i = 0; i < M; ++i)
                             {
                                 tmp += buffer_a[i] * x[i];
@@ -133,7 +137,7 @@ namespace FP_NAMESPACE
                 {
                     for (std::size_t j = 0; j < N; ++j)
                     {
-                        T_2 tmp = 0;
+                        T_2 tmp = f_0;
                         for (std::size_t i = 0; i < M; ++i)
                         {
                             tmp += a[j * M + i] * x[i];

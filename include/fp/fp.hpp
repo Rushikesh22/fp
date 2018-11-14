@@ -31,13 +31,14 @@ namespace FP_NAMESPACE
         template <typename T>
         static inline T scan_max(const T* in, const std::size_t n)
         {
+            constexpr T f_0 = static_cast<T>(0);
+
             if (n == 0)
             {
-                return 0;
+                return f_0;
             }
 
             T maximum = in[0];
-            #pragma omp simd reduction(max : maximum)
             for (std::size_t i = 0; i < n; ++i)
             {
                 maximum = std::max(maximum, in[i]);
@@ -55,14 +56,15 @@ namespace FP_NAMESPACE
         template <typename T>
         static inline T scan_absmax(const T* in, const std::size_t n)
         {
+            constexpr T f_0 = static_cast<T>(0);
+
             if (n == 0)
             {
-                return 0;
+                return f_0;
             }
 
             T maximum = in[0];
 
-            #pragma omp simd reduction(max : maximum)
             for (std::size_t i = 0; i < n; ++i)
             {
                 maximum = std::max(maximum, std::abs(in[i]));
@@ -80,14 +82,15 @@ namespace FP_NAMESPACE
         template <typename T>
         static inline T scan_min(const T* in, const std::size_t n)
         {
+            constexpr T f_0 = static_cast<T>(0);
+
             if (n == 0)
             {
-                return 0;
+                return f_0;
             }
 
             T minimum = in[0];
         
-            #pragma omp simd reduction(min : minimum)
             for (std::size_t i = 0; i < n; ++i)
             {
                 minimum = std::min(minimum, in[i]);
@@ -105,14 +108,15 @@ namespace FP_NAMESPACE
         template <typename T>
         static inline T scan_absmin(const T* in, const std::size_t n)
         {
+            constexpr T f_0 = static_cast<T>(0);
+
             if (n == 0)
             {
-                return 0;
+                return f_0;
             }
 
             T minimum = in[0];
 
-            #pragma omp simd reduction(min : minimum)
             for (std::size_t i = 0; i < n; ++i)
             {
                 minimum = std::min(minimum, std::abs(in[i]));
@@ -346,7 +350,6 @@ namespace FP_NAMESPACE
                 }
                 else
                 {
-                    #pragma omp simd
                     for (std::size_t i = 0; i < n; ++i)
                     {
                         out[i] = in[i];
@@ -358,7 +361,6 @@ namespace FP_NAMESPACE
                 // this special case can be handled by just storing the upper 16 bits
                 if (std::is_same<T, double>::value)
                 {
-                    #pragma omp simd
                     for (std::size_t i = 0; i < n; ++i)
                     {
                         const float ftmp = in[i];
@@ -368,7 +370,6 @@ namespace FP_NAMESPACE
                 }
                 else
                 {
-                    #pragma omp simd
                     for (std::size_t i = 0; i < n; ++i)
                     {
                         const std::uint32_t itmp = *reinterpret_cast<const std::uint32_t*>(&in[i]) >> 16;
@@ -457,7 +458,6 @@ namespace FP_NAMESPACE
                 }
                 else
                 {
-                    #pragma omp simd
                     for (std::size_t i = 0; i < n; ++i)
                     {
                         out[i] = in[i];
@@ -468,7 +468,6 @@ namespace FP_NAMESPACE
             {
                 // this special case can be handled by just recovering the upper 16 bits:
                 // the lower 16 bits are zeroed
-                #pragma omp simd
                 for (std::size_t i = 0; i < n; ++i)
                 {
                     const std::uint32_t tmp = static_cast<std::uint32_t>(in[i]) << 16;
@@ -541,7 +540,7 @@ namespace FP_NAMESPACE
             {0x0FFFU, 0x1FFEU, 0x3FFCU, 0x7FF8U, 0x0U, 0x0U, 0x0U, 0x0U, 0x0U, 0x0U, 0x0U, 0x0U, 0x0U, 0x0U, 0x0U, 0x0},
             {0x1FFFU, 0x3FFEU, 0x7FFCU, 0x0U, 0x0U, 0x0U, 0x0U, 0x0U, 0x0U, 0x0U, 0x0U, 0x0U, 0x0U, 0x0U, 0x0U, 0x0},
             {0x3FFFU, 0x7FFEU, 0x0U, 0x0U, 0x0U, 0x0U, 0x0U, 0x0U, 0x0U, 0x0U, 0x0U, 0x0U, 0x0U, 0x0U, 0x0U, 0x0},
-            {0x7FFFU, 0x0U, 0x0U, 0x0U, 0x0U, 0x0U, 0x0U, 0x0U, 0x0U, 0x0U, 0x0U, 0x0U, 0x0U, 0x0U, 0x0U, 0x0}};
+            {0x7FFFU, 0x0U, 0x0U, 0x0U, 0x0U, 0x0U, 0x0U, 0x0U, 0x0U, 0x0U, 0x0U, 0x0U, 0x0U, 0x0U, 0x0U, 0x0} };
 
         // maximum absolute floating point values that can be represented with 'BE' bits in the exponent and 16 bits total:
         // for BE = 1..8 : value = (1 - 2 ^ (BE - 16)) * 2 ^ (2 ^ (BE - 1))
@@ -562,7 +561,7 @@ namespace FP_NAMESPACE
             1.0,
             1.0,
             1.0,
-            1.0};
+            1.0 };
 
         //! \brief Create package of 32-bit words
         //!
@@ -855,7 +854,6 @@ namespace FP_NAMESPACE
             else
         #endif
             {
-                #pragma omp simd
                 for (std::size_t i = 0; i < n; ++i)
                 {
                     ptr_out[i] = (in[i] - a) * b;
@@ -893,7 +891,6 @@ namespace FP_NAMESPACE
             {
                 const T* ptr_in = reinterpret_cast<const T*>(&fptr_in[2]);
 
-                #pragma omp simd
                 for (std::size_t i = 0; i < n; ++i)
                 {
                     out[i] = ptr_in[i] * b + a;
