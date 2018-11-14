@@ -7,7 +7,7 @@
 #define MISC_HPP
 
 #if !defined(FP_NAMESPACE)
-#define FP_NAMESPACE fw 
+    #define FP_NAMESPACE fw 
 #endif
 
 namespace FP_NAMESPACE

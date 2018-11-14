@@ -10,7 +10,7 @@
 #include <cblas.h>
 
 #if !defined(FP_NAMESPACE)
-#define FP_NAMESPACE fw
+    #define FP_NAMESPACE fw
 #endif
 
 namespace FP_NAMESPACE
@@ -42,7 +42,7 @@ namespace FP_NAMESPACE
             cblas_sgemv(__Order, __TransA, __M, __N, __alpha, __A, __lda, __X, __incX, __beta, __Y, __incY);
         }
 
-        #if defined(FP_INTEGER_GEMV)
+    #if defined(FP_INTEGER_GEMV)
         template <typename T_1, typename T_2>
         static void gemv(const matrix_layout layout, const bool transpose, const std::size_t m, const std::size_t n, const T_1* a, const T_2* x, T_2* y)
         {
@@ -58,7 +58,7 @@ namespace FP_NAMESPACE
                     y[j] = 0;
                 }
 
-                #if defined(__AVX2__) || defined(__AVX512F__)
+            #if defined(__AVX2__) || defined(__AVX512F__)
                 constexpr bool use_simd_intrinsics = std::is_same<T_1, std::uint8_t>::value;
                 if (use_simd_intrinsics)
                 {
@@ -97,7 +97,7 @@ namespace FP_NAMESPACE
                     }
                 }
                 else
-                #endif
+            #endif
                 {
                     for (std::size_t i = 0; i < M; ++i)
                     {
@@ -113,7 +113,7 @@ namespace FP_NAMESPACE
                 const std::size_t N = (transpose ? n : m);
                 const std::size_t M = (transpose ? m : n);
 
-                #if defined(__AVX2__) || defined(__AVX512F__)
+            #if defined(__AVX2__) || defined(__AVX512F__)
                 constexpr bool use_simd_intrinsics = std::is_same<T_1, std::uint8_t>::value;
                 if (use_simd_intrinsics)
                 {
@@ -156,7 +156,7 @@ namespace FP_NAMESPACE
                     }
                 }
                 else
-                #endif
+            #endif
                 {
                     for (std::size_t j = 0; j < N; ++j)
                     {
@@ -170,7 +170,7 @@ namespace FP_NAMESPACE
                 }
             }
         }
-        #endif
+    #endif
 
         // BLAS call wrapper: triangular packed matrix vector multiply
         template <typename T>

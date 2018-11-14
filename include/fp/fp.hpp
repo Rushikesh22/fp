@@ -15,7 +15,7 @@
 #include <immintrin.h>
 
 #if !defined(FP_NAMESPACE)
-#define FP_NAMESPACE fw 
+    #define FP_NAMESPACE fw 
 #endif
 
 namespace FP_NAMESPACE
@@ -605,7 +605,13 @@ namespace FP_NAMESPACE
     ////////////////////////////////////////////////////////////////////////////////////
     namespace internal
     {
-        #if defined(__AVX2__) || defined(__AVX512F__)
+    #if defined(__AVX2__) || defined(__AVX512F__)
+    #if defined(__AVX512F__)
+        constexpr std::size_t alignment = 64;
+    #else
+        constexpr std::size_t alignment = 32;
+    #endif
+
         //! \brief Recode between different data types using SIMD intrinsics
         //!
         //! Supported: double <-> uint8_t, uint8_t -> uint[16,32]_t
@@ -628,8 +634,8 @@ namespace FP_NAMESPACE
         {
             // 32 8-bit words fit into an AVX2 register
             constexpr std::size_t chunk_size = 32;
-            alignas(32) double buffer_in[chunk_size];
-            alignas(32) std::uint8_t buffer_out[chunk_size];
+            alignas(alignment) double buffer_in[chunk_size];
+            alignas(alignment) std::uint8_t buffer_out[chunk_size];
 
             for (std::size_t i = 0; i < n; i += chunk_size)
             {
@@ -690,7 +696,7 @@ namespace FP_NAMESPACE
         {
             // 32 8-bit words fit into an AVX2 register
             constexpr std::size_t chunk_size = 32;
-            alignas(32) double buffer_out[chunk_size];
+            alignas(alignment) double buffer_out[chunk_size];
 
             for (std::size_t i = 0; i < n; i += chunk_size)
             {
@@ -738,7 +744,7 @@ namespace FP_NAMESPACE
         {
             // 32 8-bit words fit into an AVX2 register
             constexpr std::size_t chunk_size = 32;
-            alignas(32) std::int32_t buffer_out[chunk_size];
+            alignas(alignment) std::int32_t buffer_out[chunk_size];
 
             for (std::size_t i = 0; i < n; i += chunk_size)
             {
@@ -783,7 +789,7 @@ namespace FP_NAMESPACE
         {
             // 32 8-bit words fit into an AVX2 register
             constexpr std::size_t chunk_size = 32;
-            alignas(32) std::int16_t buffer_out[chunk_size];
+            alignas(alignment) std::int16_t buffer_out[chunk_size];
 
             for (std::size_t i = 0; i < n; i += chunk_size)
             {
@@ -813,7 +819,7 @@ namespace FP_NAMESPACE
                 }
             }
         }
-        #endif
+    #endif
 
 
         //! \brief Encode floating point into fixed point numbers
@@ -839,7 +845,7 @@ namespace FP_NAMESPACE
             fptr_out[1] = static_cast<float>(1.0 / b);
             TT* ptr_out = reinterpret_cast<TT*>(&fptr_out[2]);
             
-            #if defined(__AVX2__) || defined(__AVX512F__)
+        #if defined(__AVX2__) || defined(__AVX512F__)
             // use SIMD intrinsics for the recoding only in case of 8-bit fixed point representation
             constexpr bool use_simd_intrinsics = std::is_same<TT, std::uint8_t>::value;
             if (use_simd_intrinsics)
@@ -847,7 +853,7 @@ namespace FP_NAMESPACE
                 recode_simd_intrinsics<T, TT>(in, ptr_out, n, a, b);
             }
             else
-            #endif
+        #endif
             {
                 #pragma omp simd
                 for (std::size_t i = 0; i < n; ++i)
@@ -876,14 +882,14 @@ namespace FP_NAMESPACE
             const float a = fptr_in[0];
             const float b = fptr_in[1];
             
-            #if defined(__AVX2__) || defined(__AVX512F__)
+        #if defined(__AVX2__) || defined(__AVX512F__)
             constexpr bool use_simd_intrinsics = std::is_same<T, std::uint8_t>::value;
             if (use_simd_intrinsics)
             {
                 recode_simd_intrinsics<std::uint8_t, TT>(reinterpret_cast<const std::uint8_t*>(&fptr_in[2]), out, n, a, b);
             }
             else
-            #endif
+        #endif
             {
                 const T* ptr_in = reinterpret_cast<const T*>(&fptr_in[2]);
 

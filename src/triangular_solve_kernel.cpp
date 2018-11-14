@@ -18,5 +18,5 @@ void blas_triangular_solve(const bool transpose, const std::size_t n, const real
 
 void fp_triangular_solve(const bool transpose, const real_t alpha, const fp_matrix& a, std::vector<real_t>& x, std::vector<real_t>& y)
 {
-        a.solve(transpose, alpha, x, y);
+        a.triangular_solve(transpose, alpha, x, y);
 }
