@@ -51,6 +51,7 @@ namespace FP_NAMESPACE
 
 #include <fp/fp.hpp>
 #include <blas/wrapper.hpp>
+#include <blas/integer_blas.hpp>
 
 namespace FP_NAMESPACE
 {
