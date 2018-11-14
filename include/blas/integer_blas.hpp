@@ -16,7 +16,6 @@ namespace FP_NAMESPACE
 {
     namespace blas
     {
-    #if defined(FP_INTEGER_GEMV)
         template <typename T_1, typename T_2>
         static void gemv(const matrix_layout layout, const bool transpose, const std::size_t m, const std::size_t n, const T_1* a, const T_2* x, T_2* y)
         {
@@ -144,7 +143,6 @@ namespace FP_NAMESPACE
                 }
             }
         }
-    #endif
     }
 }
 
