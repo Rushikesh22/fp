@@ -539,9 +539,6 @@ namespace FP_NAMESPACE
             static constexpr T f_0 = static_cast<T>(0.0);
             static constexpr T f_1 = static_cast<T>(1.0);
 
-            // methods
-            using base_class::blas2_frame;
-
         public:
 
             // constructor
@@ -681,7 +678,7 @@ namespace FP_NAMESPACE
                     return;
                 } 
 
-                blas2_frame([&](const bool transpose, const T alpha, const T* x, T* y)
+                base_class::blas2_frame([&](const bool transpose, const T alpha, const T* x, T* y)
                 { 
                     // allocate local memory
                     alignas(alignment) T buffer_a[bs * bs];
@@ -844,9 +841,6 @@ namespace FP_NAMESPACE
                     return (n_a * partition.num_elements_a + n_b * partition.num_elements_b + n_c * (partition.num_elements_c != 0 ? partition.num_elements_c : partition.num_elements_b));
                 }
             }
-
-            // methods
-            using base_class::blas2_frame;
 
         public:
 
@@ -1022,7 +1016,7 @@ namespace FP_NAMESPACE
                     return;
                 }
 
-                blas2_frame([&](const bool transpose, const T alpha, const T* x, T* y)
+                base_class::blas2_frame([&](const bool transpose, const T alpha, const T* x, T* y)
                 { 
                     // allocate local memory
                     alignas(alignment) T buffer_a[bs * bs];
@@ -1183,7 +1177,7 @@ namespace FP_NAMESPACE
                     return;
                 }
 
-                blas2_frame([&](const bool transpose, const T alpha, const T* x, T* y)
+                base_class::blas2_frame([&](const bool transpose, const T alpha, const T* x, T* y)
                 {
                     // allocate local memory
                     alignas(alignment) T buffer_a[bs * bs];
@@ -1319,7 +1313,7 @@ namespace FP_NAMESPACE
                     return;
                 }
 
-                blas2_frame([&](const bool transpose, const T alpha, const T* x, T* y)
+                base_class::blas2_frame([&](const bool transpose, const T alpha, const T* x, T* y)
                 {
                     // allocate local memory
                     alignas(alignment) T buffer_a[bs * bs];
