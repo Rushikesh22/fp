@@ -22,6 +22,12 @@ namespace FP_NAMESPACE
 {
     namespace internal
     {
+    #if defined(__AVX512F__)
+        constexpr std::size_t alignment = 64;
+    #else
+        constexpr std::size_t alignment = 32;
+    #endif
+
         //! \brief Get maximum
         //!
         //! \tparam T data type
@@ -605,12 +611,6 @@ namespace FP_NAMESPACE
     namespace internal
     {
     #if defined(__AVX2__) || defined(__AVX512F__)
-    #if defined(__AVX512F__)
-        constexpr std::size_t alignment = 64;
-    #else
-        constexpr std::size_t alignment = 32;
-    #endif
-
         //! \brief Recode between different data types using SIMD intrinsics
         //!
         //! Supported: double <-> uint8_t, uint8_t -> uint[16,32]_t

@@ -20,18 +20,11 @@
 namespace FP_NAMESPACE
 {
     namespace blas
-    {
-        //! default alignment: TODO replace by SIMD class alignment
-    #if defined(__AVX512F__)
-        constexpr std::size_t alignment = 64;
-    #else
-        constexpr std::size_t alignment = 32;
-    #endif
-
-        //! matrix format: colmajor, rowmajor
+    {   
+        //! matrix format: column and row major
         enum class matrix_layout { colmajor = 0, rowmajor = 1 };
 
-        // index computation
+        // index computation for column and row major format
         template <matrix_layout L>
         static std::size_t idx(const std::size_t j, const std::size_t i, const std::size_t m, const std::size_t n);
 
@@ -57,14 +50,22 @@ namespace FP_NAMESPACE
 {
     namespace blas
     {
-        //! matrix types: general, lower triangular, upper triangular
+        using FP_NAMESPACE::internal::alignment;
+
+        //! matrix type: general, triangular, lower triangular, upper triangular
         enum class matrix_type { general = 0, triangular = 1, lower_triangular = 2, upper_triangular = 3 };
 
-        //! \brief General matrix
+        //! \brief Matrix base class (abstract)
         //!
-        //! \tparam T data type (of the matrix elements)
-        //! \tparam BE number of bits in the exponent
-        //! \tparam BM number of bits in the mantissa
+        //! This class implements some basic functionality for the internal representation of an 'm x n' matrix as a collection of blocks.
+        //! Blocks are de-/compressed individually.
+        //! BLAS oeprations on the matrix translate into a sequence of BLAS operations on the blocks.
+        //! The idea is to reduce the memory footprint through data compression: BLAS2 calls are bandwidth bound, so it should pay off.
+        //!
+        //! \tparam T initial data type before compression
+        //! \tparam L data layout/order (any of row major or column major)
+        //! \tparam BM number of bits in the exponent
+        //! \tparam BE number of bits in the mantissa
         template <typename T, matrix_layout L = matrix_layout::rowmajor, std::uint32_t BM = ieee754_fp<T>::bm, std::uint32_t BE = ieee754_fp<T>::be>
         class matrix_base
         {
@@ -76,7 +77,7 @@ namespace FP_NAMESPACE
             const std::size_t m;
             const std::size_t n;
 
-            // fp type for data compression
+            // data type for the internal floating / fixed point representation
             using fp_type = typename fp_stream<BM, BE>::type;
 
             // (default) block size
@@ -87,20 +88,32 @@ namespace FP_NAMESPACE
             // block size
             const std::size_t bs;
 
-            // compressed matrix
+            // internal storage: 'memory' is adapted to the size needed (after compression)
             std::vector<fp_type> memory;
+            // this pointer points either to 'memory' or to external storage representing a compressed matrix
             const fp_type* compressed_data;
 
-            // partitioning
+            // partitioning: there are different types of blocks, each of which with a certain number of elements of type 'fp_type'
             struct partition_t
             {
                 const std::size_t num_elements_a;
                 const std::size_t num_elements_b;
                 const std::size_t num_elements_c;
                 const std::size_t num_elements_d;
+                // total number of elements (for the entire matrix) of type 'fp_type'
                 const std::size_t num_elements;
             } const partition;
 
+            //! \brief Create a matrix partitioning
+            //!
+            //! A simple blocking scheme of the matrix.
+            //! Execpt for some border blocks (in case of the matrix extent is not a multiple of the block size), blocks have sizte 'bs x bs'.
+            //! However, all blocks have minimal size with respect to the compression scheme.
+            //!
+            //! \tparam MT matrix type
+            //! \param extent matrix dimensions
+            //! \param bs block size to be used for the partitioning
+            //! \return partitioning
             template <matrix_type MT>
             static partition_t make_partition(const std::array<std::size_t, 2>& extent, const std::size_t bs)
             {
@@ -114,7 +127,7 @@ namespace FP_NAMESPACE
                     //  a a a | b
                     //  a a a | b
                     // -------+---
-                    //  c c c | d                    
+                    //  c c c | d
                     const std::size_t num_elements_a = fp_stream<BM, BE>::memory_footprint_elements(bs * bs);
                     const std::size_t num_elements_b = fp_stream<BM, BE>::memory_footprint_elements(bs * (n - (n / bs) * bs));
                     const std::size_t num_elements_c = fp_stream<BM, BE>::memory_footprint_elements((m - (m / bs) * bs) * bs);
@@ -146,9 +159,13 @@ namespace FP_NAMESPACE
                 }
             }
 
-            // constructor for triangular matrices
-            template <typename TT>
-            matrix_base(const TT* data, const std::size_t ld_data, const std::array<std::size_t, 1>& extent, const std::size_t bs = bs_default)
+            //! \brief Constructor for triangular matrices
+            //!
+            //! \param data pointer to the input matrix
+            //! \param ld_data leading dimension of the memory allocation that is behind the input matrix
+            //! \param extent matrix dimensions
+            //! \param bs (optional) block size
+            matrix_base(const T* data, const std::size_t ld_data, const std::array<std::size_t, 1>& extent, const std::size_t bs = bs_default)
                 :
                 m(extent[0]), // set, but not to be used
                 n(extent[0]),
@@ -156,12 +173,20 @@ namespace FP_NAMESPACE
                 compressed_data(nullptr),
                 partition(make_partition<matrix_type::triangular>({m, n}, bs))
             {
-                ;
+                if (data == nullptr)
+                {
+                    std::cerr << "error in matrix_base<..," << BE << "," << BM << ">::matrix_base: pointer is a nullptr" << std::endl;
+                    throw std::exception();
+                }
             }
 
-            // constructor for general matrices
-            template <typename TT>
-            matrix_base(const TT* data, const std::size_t ld_data, const std::array<std::size_t, 2>& extent, const std::size_t bs = bs_default)
+            //! \brief Constructor for general matrices
+            //!
+            //! \param data pointer to the input matrix
+            //! \param ld_data leading dimension of the memory allocation that is behind the input matrix
+            //! \param extent matrix dimensions
+            //! \param bs (optional) block size
+            matrix_base(const T* data, const std::size_t ld_data, const std::array<std::size_t, 2>& extent, const std::size_t bs = bs_default)
                 :
                 m(extent[0]),
                 n(extent[1]),
@@ -169,10 +194,24 @@ namespace FP_NAMESPACE
                 compressed_data(nullptr),
                 partition(make_partition<matrix_type::general>({m, n}, bs))
             {
-                ;
+                if (data == nullptr)
+                {
+                    std::cerr << "error in matrix_base<..," << BE << "," << BM << ">::matrix_base: pointer is a nullptr" << std::endl;
+                    throw std::exception();
+                }
             }
 
-            // compression
+            //! \brief Matrix compression
+            //!
+            //! This method works on the matrix partitioning and compresses the matrix block wise.
+            //!
+            //! \tparam MT matrix type
+            //! \param data pointer to the input matrix
+            //! \param ld_data leading dimension of the memory allocation that is behind the input matrix
+            //! \param compressed_data pointer to the compressed matrix
+            //! \param extent matrix dimensions
+            //! \param bs block size
+            //! \param partition the matrix partitioning
             template <matrix_type MT>
             static ptrdiff_t compress(const T* data, const std::size_t ld_data, fp_type* compressed_data, const std::array<std::size_t, 2>& extent, const std::size_t bs, const partition_t& partition)
             {
@@ -189,29 +228,39 @@ namespace FP_NAMESPACE
                 constexpr bool upper_rowmajor = (MT == matrix_type::upper_triangular) && (L == matrix_layout::rowmajor);
                 constexpr bool lower_colmajor = (MT == matrix_type::lower_triangular) && (L == matrix_layout::colmajor);
 
-                // compress the matrix block by block
+                // compress the matrix block wise: blocks are copied into the buffer before the compression
                 alignas(alignment) T buffer[bs * bs];
+                // pointer to the first block
                 fp_type* ptr = compressed_data;
 
                 for (std::size_t j = 0; j < m; j += bs)
                 {
+                    //                    'i'->...
+                    // row 'j'             0             j             n
+                    // upper triangular                  x x x x x x x x
+                    // lower triangular    x x x x x x x x               
                     const std::size_t i_start_triangular = (MT == matrix_type::upper_triangular ? j : 0);
                     const std::size_t i_end_triangular = (MT == matrix_type::upper_triangular ? n : (j + 1));
-
+                    // general matrix      x x x x x x x x x x x x x x x            
                     const std::size_t i_start = (MT == matrix_type::general ? 0 : i_start_triangular);
                     const std::size_t i_end = (MT == matrix_type::general ? n : i_end_triangular);
                     
                     for (std::size_t i = i_start; i < i_end; i += bs)
                     {
+                        // extent of the current block
                         const std::size_t mm = std::min(m - j, bs);
                         const std::size_t nn = std::min(n - i, bs);
 
-                        // copy blocks into the 'buffer'
+                        // copy block into the 'buffer'
                         if (MT != matrix_type::general && i == j)
                         {
-                            // diagonal blocks
+                            // diagonal blocks: for triangular matrix only
                             for (std::size_t jj = 0, kk = 0; jj < mm; ++jj)
                             {
+                                //                    'ii'->...
+                                // row 'jj'             0            jj             nn
+                                // upper triangular                  x x x x x x x x
+                                // lower triangular    x x x x x x x x       
                                 const std::size_t ii_start = (upper_rowmajor || lower_colmajor ? jj : 0);
                                 const std::size_t ii_end = (upper_rowmajor || lower_colmajor ? nn : (jj + 1));
 
@@ -223,7 +272,7 @@ namespace FP_NAMESPACE
                         }
                         else
                         {
-                            // non-diagonal blocks
+                            // non-diagonal blocks: full block
                             for (std::size_t jj = 0; jj < mm; ++jj)
                             {
                                 for (std::size_t ii = 0; ii < nn; ++ii)
@@ -257,6 +306,7 @@ namespace FP_NAMESPACE
                     }
                 }
                 
+                // correct the last block's element count
                 if (partition.num_elements_d != 0)
                 {
                     if (MT == matrix_type::general)
@@ -272,7 +322,18 @@ namespace FP_NAMESPACE
                 return (ptr - compressed_data);
             }
 
-            // decompression
+            //! \brief Matrix decompression
+            //!
+            //! This method works on the matrix partitioning and decompresses the matrix block wise
+            //! (the same way the compression method is working).
+            //!
+            //! \tparam MT matrix type
+            //! \param compressed_data pointer to the compressed matrix
+            //! \param data pointer to the (decompressed) output matrix
+            //! \param ld_data leading dimension of the memory allocation that is behind the output matrix
+            //! \param extent matrix dimensions
+            //! \param bs block size
+            //! \param partition the matrix partitioning
             template <matrix_type MT>
             static void decompress(const fp_type* compressed_data, T* data, const std::size_t ld_data, const std::array<std::size_t, 2>& extent, const std::size_t bs, const partition_t& partition)
             {
@@ -286,12 +347,14 @@ namespace FP_NAMESPACE
                 const std::size_t n = extent[1];
                 if (m == 0 || n == 0 || bs == 0) return;
                 
-                // decompress the matrix block by block
                 constexpr bool upper_rowmajor = (MT == matrix_type::upper_triangular) && (L == matrix_layout::rowmajor);
                 constexpr bool lower_colmajor = (MT == matrix_type::lower_triangular) && (L == matrix_layout::colmajor);
 
+                // decompress the matrix block wise
                 alignas(alignment) T buffer[bs * bs];
+                // pointer to the first block
                 const fp_type* ptr = compressed_data;
+
                 for (std::size_t j = 0; j < n; j += bs)
                 {
                     const std::size_t i_start_triangular = (MT == matrix_type::upper_triangular ? j : 0);
@@ -361,7 +424,18 @@ namespace FP_NAMESPACE
             static constexpr T f_0 = static_cast<T>(0.0);
             static constexpr T f_1 = static_cast<T>(1.0);
 
-            // template function providing a frame for different blas2 kernel implementations
+            //! \brief Function body for different blas2 kernel implementations
+            //!
+            //! Some special cases are handled and input and output vectors are set up.
+            //! The BLAS2 kernel is provided through a Lambda and operates on the input and output vectors.
+            //!
+            //! \tparam F Lambda
+            //! \param kernel the BLAS2 operation (as a Lambda)
+            //! \param transpose matrix transposition
+            //! \param alpha scaling factor for the matrix
+            //! \param x pointer to the input vector
+            //! \param beta scaling factor for the output vector
+            //! \param y pointer to the output vector
             template <typename F>
             void blas2_frame(const F& kernel, const bool transpose, const T alpha, const T* x, const T beta, T* y) const
             {
@@ -374,7 +448,6 @@ namespace FP_NAMESPACE
                 {
                     if (beta == f_0)
                     {
-                        #pragma omp simd
                         for (std::size_t j = 0; j < mn; ++j)
                         {
                             y[j] = f_0;
@@ -382,7 +455,6 @@ namespace FP_NAMESPACE
                     }
                     else if (beta != f_1)
                     {
-                        #pragma omp simd
                         for (std::size_t j = 0; j < mn; ++j)
                         {
                             y[j] = beta * y[j];
@@ -392,7 +464,7 @@ namespace FP_NAMESPACE
                     return;
                 }
 
-                // allocate local memory
+                // allocate local memory: work directly on 'y' if 'x' and 'y' do not overlap
                 const bool use_buffer = (std::abs(y - x) >= std::max(m, n) ? false : true);
                 alignas(alignment) T buffer_y[use_buffer ? mn : 0];
                 T* ptr_y = nullptr;
@@ -403,7 +475,6 @@ namespace FP_NAMESPACE
                     ptr_y = &buffer_y[0];
 
                     // zero the buffer
-                    #pragma omp simd
                     for (std::size_t j = 0; j < mn; ++j)
                     {
                         ptr_y[j] = f_0;
@@ -417,7 +488,6 @@ namespace FP_NAMESPACE
                     // scale by 'beta'
                     if (beta == f_0)
                     {
-                        #pragma omp simd
                         for (std::size_t j = 0; j < mn; ++j)
                         {
                             ptr_y[j] = f_0;
@@ -425,7 +495,6 @@ namespace FP_NAMESPACE
                     }
                     else if (beta != f_1)
                     {
-                        #pragma omp simd
                         for (std::size_t j = 0; j < mn; ++j)
                         {
                             ptr_y[j] *= beta;
@@ -445,7 +514,6 @@ namespace FP_NAMESPACE
                 // accumulate on 'y'
                 if (beta == f_0)
                 {
-                    #pragma omp simd
                     for (std::size_t j = 0; j < mn; ++j)
                     {
                         y[j] = buffer_y[j];
@@ -453,7 +521,6 @@ namespace FP_NAMESPACE
                 }
                 else if (beta == f_1)
                 {
-                    #pragma omp simd
                     for (std::size_t j = 0; j < mn; ++j)
                     {
                         y[j] += buffer_y[j];
@@ -461,7 +528,6 @@ namespace FP_NAMESPACE
                 }
                 else
                 {
-                    #pragma omp simd
                     for (std::size_t j = 0; j < mn; ++j)
                     {
                         y[j] = buffer_y[j] + beta * y[j];
@@ -469,6 +535,7 @@ namespace FP_NAMESPACE
                 }
             }
 
+            // do not allow instantiation
             matrix_base() = delete;
 
         public:
@@ -488,9 +555,10 @@ namespace FP_NAMESPACE
 
         //! \brief General matrix
         //!
-        //! \tparam T data type (of the matrix elements)
-        //! \tparam BE number of bits in the exponent
-        //! \tparam BM number of bits in the mantissa
+        //! \tparam T initial data type before compression
+        //! \tparam L data layout/order (any of row major or column major)
+        //! \tparam BM number of bits in the exponent
+        //! \tparam BE number of bits in the mantissa
         template <typename T, matrix_layout L = matrix_layout::rowmajor, std::uint32_t BM = ieee754_fp<T>::bm, std::uint32_t BE = ieee754_fp<T>::be>
         class matrix : public matrix_base<T, L, BM, BE>
         {
@@ -507,7 +575,7 @@ namespace FP_NAMESPACE
             using base_class::m;
             using base_class::n;
 
-            // fp type for data compression
+            // data type for the internal floating / fixed point representation
             using fp_type = typename base_class::fp_type;
 
             // (default) block size
@@ -531,14 +599,23 @@ namespace FP_NAMESPACE
 
         public:
 
-            // constructor
+            // do not create a standard constructor
             matrix() = delete;
 
-            template <typename TT>
-            matrix(const TT* data, const std::size_t ld_data, const std::array<std::size_t, 2>& extent, const std::size_t bs = bs_default)
+            //! \brief Constructor
+            //!
+            //! This constructor applies the matrix compression:
+            //! if 'ld_data' is specified and larger than zero, it indicates that we are working on the raw input matrix.
+            //!
+            //! \param data pointer to the input matrix
+            //! \param ld_data leading dimension of the memory allocation that is behind the output matrix
+            //! \param extent matrix dimensions
+            //! \param bs block size
+            matrix(const T* data, const std::size_t ld_data, const std::array<std::size_t, 2>& extent, const std::size_t bs = bs_default)
                 :
                 base_class(data, ld_data, extent, bs)
             {
+                // create a compressed matrix with internal storage
                 if (ld_data > 0)
                 {
                     // allocate memory for the compressed matrix
@@ -552,37 +629,90 @@ namespace FP_NAMESPACE
                 }
             }
 
-            template <typename TT>
-            matrix(const std::vector<TT>& data, const std::size_t ld_data, const std::array<std::size_t, 2>& extent, const std::size_t bs = bs_default)
+            //! \brief Constructor
+            //!
+            //! \param data vector holding the input matrix
+            //! \param ld_data leading dimension of the memory allocation that is behind the output matrix
+            //! \param extent matrix dimensions
+            //! \param bs block size
+            matrix(const std::vector<T>& data, const std::size_t ld_data, const std::array<std::size_t, 2>& extent, const std::size_t bs = bs_default)
                 :
                 matrix(&data[0], ld_data, extent, bs)
             {
                 ;
             }
 
-            template <typename TT>
-            matrix(const TT* data, const std::array<std::size_t, 2>& extent, const std::size_t bs = bs_default)
+            //! \brief Constructor
+            //!
+            //! This constructor allows to bind an externally compressed matrix.
+            //! The internal storage then is not used.
+            //! For 'fp_type' not being an integer (this would be the case if BE=11 and BM=52 or BE=8 and BM=23)
+            //! 'TT' might be equal to 'T' and we cannot conclude that 'data' points to a compressed matrix.
+            //! We thus have to use an additional argument to to control the internal storage usage and data compression.
+            //! 
+            //! \param data pointer to either the compressed or uncompressed input matrix
+            //! \param extent matrix dimensions
+            //! \param bs block size
+            //! \param is_compressed (optional) 'data' points to a compressed matrix or not
+            template <typename TT, typename X = typename std::enable_if<!std::is_integral<TT>::value>::type>
+            matrix(const TT* data, const std::array<std::size_t, 2>& extent, const std::size_t bs = bs_default, const bool is_compressed = true)
                 :
-                matrix(data, 0, extent, bs)
+                // if 'data' points to a compressed matrix set 'ld_data' to zero to avoid using the internal storage,
+                // otherwise, deduce 'ld_data' from 'extent'
+                matrix(data, (is_compressed ? 0 : (L == matrix_layout::rowmajor ? extent[1] : extent[0])), extent, bs)
             {
-                if (std::is_same<TT, fp_type>::value)
+                if (is_compressed)
                 {
-                    // 'data' points to a compressed matrix
-                    compressed_data = reinterpret_cast<const fp_type*>(data);
-                }
-                else
-                {
-                    std::cerr << "error in matrix<..," << BE << "," << BM << ">::matrix: external pointer type does not match fp_type" << std::endl;
+                    if (std::is_same<TT, fp_type>::value)
+                    {
+                        // base class constructor makes sure that 'data' is not NULL
+                        compressed_data = reinterpret_cast<const fp_type*>(data);
+                    }
+                    else
+                    {
+                        std::cerr << "error in matrix<..," << BE << "," << BM << ">::matrix: external pointer type does not match fp_type" << std::endl;
+                    }
                 }
             }
 
+            //! \brief Constructor
+            //!
+            //! This constructor allows to bind an externally compressed matrix.
+            //! The internal storage then is not used.
+            //! This constructor complements the above one for 'fp_type' being an integer.
+            //! In this case 'data' is assumed to point to an externally compressed matrix.
+            //! 
+            //! \param data pointer to the compressed input matrix
+            //! \param extent matrix dimensions
+            //! \param bs block size
+            template <typename TT, typename X = typename std::enable_if<std::is_integral<TT>::value>::type>
+            matrix(const TT* data, const std::array<std::size_t, 2>& extent, const std::size_t bs = bs_default)
+                :
+                // since 'data' points to a compressed matrix set 'ld_data' to zero to avoid using the internal storage
+                matrix(reinterpret_cast<const T*>(data), 0, extent, bs)
+            {
+                // base class constructor makes sure that 'data' is not NULL
+                compressed_data = reinterpret_cast<const fp_type*>(data);
+            }
+
+            //! \brief Move constructor 
             matrix(matrix&& rhs) = default;
 
+            //! \brief Destructor
             virtual ~matrix()
             { 
                 compressed_data = nullptr;
             }
    
+            //! \brief (External) matrix compression
+            //!
+            //! This method can be used without object creation.
+            //!
+            //! \param data pointer to the input matrix
+            //! \param ld_data leading dimension of the memory allocation that is behind the input matrix
+            //! \param compressed_data pointer to the compressed matrix
+            //! \param extent matrix dimensions
+            //! \param bs (optional) block size
             static ptrdiff_t compress(const T* data, const std::size_t ld_data, fp_type* compressed_data, const std::array<std::size_t, 2>& extent, const std::size_t bs = bs_default)
             {
                 if (data == nullptr || compressed_data == nullptr)
@@ -595,10 +725,20 @@ namespace FP_NAMESPACE
                 const std::size_t n = extent[1];
                 if (m == 0 || n == 0 || bs == 0) return 0;
                 
+                // create partitioning and use the base class compression method
                 const partition_t partition = base_class::template make_partition<matrix_type::general>(extent, bs);
                 return base_class::template compress<matrix_type::general>(data, ld_data, compressed_data, extent, bs, partition);
             }
 
+            //! \brief (External) matrix decompression
+            //!
+            //! This method can be used without object creation.
+            //!
+            //! \param compressed_data pointer to the compressed matrix
+            //! \param data pointer to the (decompressed) output matrix
+            //! \param ld_data leading dimension of the memory allocation that is behind the output matrix
+            //! \param extent matrix dimensions
+            //! \param bs (optional) block size
             static void decompress(const fp_type* compressed_data, T* data, const std::size_t ld_data, const std::array<std::size_t, 2>& extent, const std::size_t bs = bs_default)
             {
                 if (data == nullptr || compressed_data == nullptr)
@@ -611,10 +751,15 @@ namespace FP_NAMESPACE
                 const std::size_t n = extent[1];
                 if (m == 0 || n == 0 || bs == 0) return;
                 
+                // create partitioning and use the base class decompression method
                 const partition_t partition = base_class::template make_partition<matrix_type::general>(extent, bs);
                 base_class::template decompress<matrix_type::general>(compressed_data, data, ld_data, extent, bs, partition);
             }
 
+            //! \brief Decompress this matrix
+            //!
+            //! \param data pointer to the (decompressed) output matrix
+            //! \param ld_data (optional) leading dimension of the memory allocation that is behind the output matrix
             void decompress(T* data, const std::size_t ld_data = 0)
             {
                 if (data == nullptr)
@@ -623,9 +768,15 @@ namespace FP_NAMESPACE
                     return;
                 }
 
+                // if 'ld_data' is not speficied, deduce it from the matrix dimensions
                 base_class::template decompress<matrix_type::general>(compressed_data, data, (ld_data == 0 ? (L == matrix_layout::rowmajor ? n : m) : ld_data), {m, n}, bs, partition);
             }
 
+            //! \brief Determine the number of elements needed to store the compressed matrix
+            //!
+            //! \param extent matrix dimensions
+            //! \param bs (optional) block size
+            //! return number of elements of type 'fp_type'
             static std::size_t memory_footprint_elements(const std::array<std::size_t, 2>& extent, const std::size_t bs = bs_default)
             {
                 const std::size_t m = extent[0];
@@ -635,6 +786,11 @@ namespace FP_NAMESPACE
                 return (base_class::template make_partition<matrix_type::general>(extent, bs)).num_elements;
             }
 
+            //! \brief Determine the number of bytes needed to store the compressed matrix
+            //!
+            //! \param extent matrix dimensions
+            //! \param bs (optional) block size
+            //! return number of bytes
             static std::size_t memory_footprint_bytes(const std::array<std::size_t, 2>& extent, const std::size_t bs = bs_default)
             {
                 return memory_footprint_elements(extent, bs) * sizeof(fp_type);
@@ -645,7 +801,13 @@ namespace FP_NAMESPACE
 
             //! \brief General matrix vector multiply
             //!
-            //! Computes y = alpha * A(T) * x + beta * y
+            //! Computes y = alpha * A(T) * x + beta * y.
+            //!
+            //! \param transpose matrix transposition
+            //! \param alpha scaling factor for the matrix
+            //! \param x pointer to the input vector
+            //! \param beta scaling factor for the output vector
+            //! \param y pointer to the output vector
             virtual void matrix_vector(const bool transpose, const T alpha, const T* x, const T beta, T* y) const
             {
                 if (x == nullptr || y == nullptr)
@@ -662,15 +824,21 @@ namespace FP_NAMESPACE
                     alignas(alignment) T buffer_a[bs * bs];
 
                 #if defined(FP_INTEGER_GEMV)
+                    // the matrix vector multiplication happens directly on the
+                    // integer (fixed point) representation of the matrix
                     alignas(alignment) T tmp_y[bs];
                     std::vector<T> rescale_p_2(0);
-                    if ((BE == 0 && BM == 7) || (BE == 0 && BM == 15))
+                    if (internal::is_fixed_point_type<BM, BE>::value)
                     {
-                        rescale_p_2.reserve((transpose ? m : n) / bs + 1);
-                        for (std::size_t i = 0, k = 0; i < (transpose ? m : n); i += bs, ++k)
+                        const std::size_t mn = (transpose ? m : n);
+                        // the transformation between the fixed and floating point representation
+                        // contains an additive factor which is multiplied with the input vector:
+                        // we have to account for this by summing up chunks of the vector according to the partitioning
+                        rescale_p_2.reserve(mn / bs + 1);
+                        for (std::size_t i = 0, k = 0; i < mn; i += bs, ++k)
                         {
                             rescale_p_2[k] = f_0;
-                            const std::size_t ii_max = std::min((transpose ? m : n) - i, bs);
+                            const std::size_t ii_max = std::min(mn - i, bs);
                             for (std::size_t ii = 0; ii < ii_max; ++ii)
                             {
                                 rescale_p_2[k] += x[i + ii];
@@ -690,9 +858,10 @@ namespace FP_NAMESPACE
                             const std::size_t nn = std::min(n - i, bs);
 
                         #if defined(FP_INTEGER_GEMV)
-                            if ((BE == 0 && BM == 7) || (BE == 0 && BM == 15))
+                            if (internal::is_fixed_point_type<BM, BE>::value)
                             {
-                                const T* fptr = reinterpret_cast<const T*>(&compressed_data[k]);
+                                // extract scaling factors for the current block
+                                const float* fptr = reinterpret_cast<const float*>(&compressed_data[k]);
                                 const T rescale_p_3 = fptr[0];
                                 const T rescale_p_4 = fptr[1];
                                 const fp_type* tmp_a = reinterpret_cast<const fp_type*>(&fptr[2]);
@@ -700,11 +869,11 @@ namespace FP_NAMESPACE
                                 // move on to the next block
                                 k += ((n - i) < bs ? partition.num_elements_b : k_inc);
                                 
-                                // integer gemm : (1 x k) * (k x n) -> (1 x n)
+                                // integer gemv
                                 const std::size_t src_idx = (transpose ? j : i);
                                 const std::size_t dst_idx = (transpose ? i : j);
                                 blas::gemv(L, transpose, mm, nn, &tmp_a[0], &x[src_idx], &tmp_y[0]);
-                                // ..finalize gemm call: rescaling
+                                // ..finalize gemv call: rescaling
                                 const T a = rescale_p_4;
                                 const T b = rescale_p_2[src_idx / bs] * rescale_p_3;
                                 for (std::size_t jj = 0; jj < (transpose ? nn : mm); ++jj)
@@ -750,9 +919,10 @@ namespace FP_NAMESPACE
 
         //! \brief Triangular matrix
         //!
-        //! \tparam T data type (of the matrix elements)
-        //! \tparam BE number of bits in the exponent
-        //! \tparam BM number of bits in the mantissa
+        //! \tparam T initial data type before compression
+        //! \tparam L data layout/order (any of row major or column major)
+        //! \tparam BM number of bits in the exponent
+        //! \tparam BE number of bits in the mantissa
         template <typename T, matrix_layout L = matrix_layout::rowmajor, matrix_type MT = matrix_type::upper_triangular, std::uint32_t BM = ieee754_fp<T>::bm, std::uint32_t BE = ieee754_fp<T>::be>
         class triangular_matrix : public matrix_base<T, L, BM, BE>
         {
@@ -766,10 +936,10 @@ namespace FP_NAMESPACE
 
         public:
 
-            // extent of the matrix
+            // extent of the matrix: 'n' rows and 'n' columns
             using base_class::n;
 
-            // fp type for data compression
+            // data type for the internal floating / fixed point representation
             using fp_type = typename base_class::fp_type;
 
             // (default) block size
@@ -791,10 +961,16 @@ namespace FP_NAMESPACE
             static constexpr T f_0 = static_cast<T>(0.0);
             static constexpr T f_1 = static_cast<T>(1.0);
 
-            // determine offset from block ID
-            std::size_t get_offset(const matrix_type mt, const std::size_t bj, const std::size_t bi) const
+            //! \brief Block offset computation
+            //!
+            //! get the offset w.r.t. to 0 for the block with Id=(bj, bi)
+            //!
+            //! \param bj block id
+            //! \param bi block id
+            //! \return offset w.r.t. to 0
+            std::size_t get_offset(const std::size_t bj, const std::size_t bi) const
             {
-                if (mt == matrix_type::upper_triangular)
+                if (MT == matrix_type::upper_triangular)
                 {
                     const std::size_t n_ab_row = (n / bs);
                     const std::size_t n_c_row = ((n + bs - 1) / bs) - n_ab_row;
@@ -822,14 +998,23 @@ namespace FP_NAMESPACE
 
         public:
 
-            // constructor
+            // do not create a standard constructor
             triangular_matrix() = delete;
-
-            template <typename TT>
-            triangular_matrix(const TT* data, const std::size_t ld_data, const std::array<std::size_t, 1>& extent, const std::size_t bs = bs_default)
+            
+            //! \brief Constructor
+            //!
+            //! This constructor applies the matrix compression:
+            //! if 'ld_data' is specified and larger than zero, it indicates that we are working on the raw input matrix.
+            //!
+            //! \param data pointer to the input matrix
+            //! \param ld_data leading dimension of the memory allocation that is behind the output matrix
+            //! \param extent matrix dimensions
+            //! \param bs block size
+            triangular_matrix(const T* data, const std::size_t ld_data, const std::array<std::size_t, 1>& extent, const std::size_t bs = bs_default)
                 :
                 base_class(data, ld_data, extent, bs)
             {
+                // create a compressed matrix with internal storage
                 if (ld_data > 0)
                 {
                     // allocate memory for the compressed matrix
@@ -843,61 +1028,96 @@ namespace FP_NAMESPACE
                 }
             }
 
-            template <typename TT>
-            triangular_matrix(const TT* data, const std::size_t ld_data, const std::array<std::size_t, 2>& extent, const std::size_t bs = bs_default)
+
+            triangular_matrix(const T* data, const std::size_t ld_data, const std::array<std::size_t, 2>& extent, const std::size_t bs = bs_default)
                 :
                 triangular_matrix(data, ld_data, std::array<std::size_t, 1>({extent[0]}), bs)
             {
                 ;
             }
 
-            template <typename TT>
-            triangular_matrix(const std::vector<TT>& data, const std::size_t ld_data, const std::array<std::size_t, 1>& extent, const std::size_t bs = bs_default)
+            //! \brief Constructor
+            //!
+            //! \param data vector holding the input matrix
+            //! \param ld_data leading dimension of the memory allocation that is behind the output matrix
+            //! \param extent matrix dimensions
+            //! \param bs block size
+            template <std::size_t D>
+            triangular_matrix(const std::vector<T>& data, const std::size_t ld_data, const std::array<std::size_t, D>& extent, const std::size_t bs = bs_default)
                 :
                 triangular_matrix(&data[0], ld_data, extent, bs)
             {
                 ;
             }
 
-            template <typename TT>
-            triangular_matrix(const std::vector<TT>& data, const std::size_t ld_data, const std::array<std::size_t, 2>& extent, const std::size_t bs = bs_default)
+            //! \brief Constructor
+            //!
+            //! This constructor allows to bind an externally compressed matrix.
+            //! The internal storage then is not used.
+            //! For 'fp_type' not being an integer (this would be the case if BE=11 and BM=52 or BE=8 and BM=23)
+            //! 'TT' might be equal to 'T' and we cannot conclude that 'data' points to a compressed matrix.
+            //! We thus have to use an additional argument to to control the internal storage usage and data compression.
+            //! 
+            //! \param data pointer to either the compressed or uncompressed input matrix
+            //! \param extent matrix dimensions
+            //! \param bs block size
+            //! \param is_compressed (optional) 'data' points to a compressed matrix or not
+            template <typename TT, std::size_t D, typename X = typename std::enable_if<!std::is_integral<TT>::value>::type>
+            triangular_matrix(const TT* data, const std::array<std::size_t, D>& extent, const std::size_t bs = bs_default, const bool is_compressed = true)
                 :
-                triangular_matrix(&data[0], ld_data, extent, bs)
+                triangular_matrix(data, (is_compressed ? 0 : extent[0]), extent, bs)
             {
-                ;
-            }
-
-            template <typename TT>
-            triangular_matrix(const TT* data, const std::array<std::size_t, 1>& extent, const std::size_t bs = bs_default)
-                :
-                triangular_matrix(data, 0, extent, bs)
-            {
-                if (std::is_same<TT, fp_type>::value)
+                if (is_compressed)
                 {
-                    // 'data' points to a compressed matrix
-                    compressed_data = reinterpret_cast<const fp_type*>(data);
-                }
-                else
-                {
-                    std::cerr << "error in triangular_matrix<..," << BE << "," << BM << ">::triangular_matrix: external pointer type does not match fp_type" << std::endl;
+                    if (std::is_same<TT, fp_type>::value)
+                    {
+                        // 'data' points to a compressed matrix
+                        compressed_data = reinterpret_cast<const fp_type*>(data);
+                    }
+                    else
+                    {
+                        std::cerr << "error in triangular_matrix<..," << BE << "," << BM << ">::triangular_matrix: external pointer type does not match fp_type" << std::endl;
+                    }
                 }
             }
 
-            template <typename TT>
-            triangular_matrix(const TT* data, const std::array<std::size_t, 2>& extent, const std::size_t bs = bs_default)
+            //! \brief Constructor
+            //!
+            //! This constructor allows to bind an externally compressed matrix.
+            //! The internal storage then is not used.
+            //! This constructor complements the above one for 'fp_type' being an integer.
+            //! In this case 'data' is assumed to point to an externally compressed matrix.
+            //! 
+            //! \param data pointer to the compressed input matrix
+            //! \param extent matrix dimensions
+            //! \param bs block size
+            template <typename TT, std::size_t D, typename X = typename std::enable_if<std::is_integral<TT>::value>::type>
+            triangular_matrix(const TT* data, const std::array<std::size_t, D>& extent, const std::size_t bs = bs_default)
                 :
-                triangular_matrix(data, {extent[0]}, bs)
+                triangular_matrix(reinterpret_cast<const T*>(data), 0, extent, bs)
             {
-                ;
+                // 'data' points to a compressed matrix: base class constructor makes sure that 'data' is not NULL
+                compressed_data = reinterpret_cast<const fp_type*>(data);
             }
 
+            //! \brief Move constructor 
             triangular_matrix(triangular_matrix&& rhs) = default;
 
+            //! \brief Destructor
             virtual ~triangular_matrix() 
             { 
                 compressed_data = nullptr; 
             }
 
+            //! \brief (External) matrix compression
+            //!
+            //! This method can be used without object creation.
+            //!
+            //! \param data pointer to the input matrix
+            //! \param ld_data leading dimension of the memory allocation that is behind the input matrix
+            //! \param compressed_data pointer to the compressed matrix
+            //! \param extent matrix dimensions
+            //! \param bs (optional) block size
             static ptrdiff_t compress(const T* data, const std::size_t ld_data, fp_type* compressed_data, const std::array<std::size_t, 2>& extent, const std::size_t bs = bs_default)
             {
                 if (data == nullptr || compressed_data == nullptr)
@@ -914,6 +1134,15 @@ namespace FP_NAMESPACE
                 return base_class::template compress<MT>(data, ld_data, compressed_data, extent, bs, partition);
             }
 
+            //! \brief (External) matrix decompression
+            //!
+            //! This method can be used without object creation.
+            //!
+            //! \param compressed_data pointer to the compressed matrix
+            //! \param data pointer to the (decompressed) output matrix
+            //! \param ld_data leading dimension of the memory allocation that is behind the output matrix
+            //! \param extent matrix dimensions
+            //! \param bs (optional) block size
             static void decompress(const fp_type* compressed_data, T* data, const std::size_t ld_data, const std::array<std::size_t, 2>& extent, const std::size_t bs = bs_default)
             {
                 if (data == nullptr || compressed_data == nullptr)
@@ -940,11 +1169,27 @@ namespace FP_NAMESPACE
                 decompress(compressed_data, data, ld_data, {extent[0], extent[0]}, bs);
             }
 
+            //! \brief Decompress this matrix
+            //!
+            //! \param data pointer to the (decompressed) output matrix
+            //! \param ld_data (optional) leading dimension of the memory allocation that is behind the output matrix
             void decompress(T* data, const std::size_t ld_data = 0)
             {
+                if (data == nullptr)
+                {
+                    std::cerr << "error in triangular_matrix<..," << BE << "," << BM << ">::decompress: pointers is a nullptr" << std::endl;
+                    return;
+                }
+
+                // if 'ld_data' is not speficied, deduce it from the matrix dimensions
                 base_class::template decompress<MT>(compressed_data, data, (ld_data == 0 ? n : ld_data), {n, n}, bs, partition);
             }
 
+            //! \brief Determine the number of elements needed to store the compressed matrix
+            //!
+            //! \param extent matrix dimensions
+            //! \param bs (optional) block size
+            //! return number of elements of type 'fp_type'
             static std::size_t memory_footprint_elements(const std::array<std::size_t, 2>& extent, const std::size_t bs = bs_default)
             {
                 const std::size_t m = extent[0];
@@ -959,6 +1204,11 @@ namespace FP_NAMESPACE
                 return memory_footprint_elements({extent[0], extent[0]}, bs);
             }
 
+            //! \brief Determine the number of bytes needed to store the compressed matrix
+            //!
+            //! \param extent matrix dimensions
+            //! \param bs (optional) block size
+            //! return number of bytes
             static std::size_t memory_footprint_bytes(const std::array<std::size_t, 2>& extent, const std::size_t bs = bs_default)
             {
                 return memory_footprint_elements(extent, bs) * sizeof(fp_type);
@@ -972,6 +1222,15 @@ namespace FP_NAMESPACE
             using base_class::memory_footprint_elements;
             using base_class::memory_footprint_bytes;
 
+            //! \brief Triangular (packed) matrix vector multiply
+            //!
+            //! Computes y = alpha * A(T) * x + beta * y.
+            //!
+            //! \param transpose matrix transposition
+            //! \param alpha scaling factor for the matrix
+            //! \param x pointer to the input vector
+            //! \param beta scaling factor for the output vector
+            //! \param y pointer to the output vector
             virtual void matrix_vector(const bool transpose, const T alpha, const T* x, const T beta, T* y) const
             {
                 if (x == nullptr || y == nullptr)
@@ -989,10 +1248,15 @@ namespace FP_NAMESPACE
                     alignas(alignment) T buffer_y[bs];
                     
                 #if defined(FP_INTEGER_GEMV)
+                    // the matrix vector multiplication happens directly on the
+                    // integer (fixed point) representation of the matrix
                     alignas(alignment) T tmp_y[bs];
                     std::vector<T> rescale_p_2(0);
-                    if ((BE == 0 && BM == 7) || (BE == 0 && BM == 15))
+                    if (internal::is_fixed_point_type<BM, BE>::value)
                     {
+                        // the transformation between the fixed and floating point representation
+                        // contains an additive factor which is multiplied with the input vector:
+                        // we have to account for this by summing up chunks of the vector according to the partitioning
                         rescale_p_2.reserve(n / bs + 1);
                         for (std::size_t i = 0, k = 0; i < n; i += bs, ++k)
                         {
@@ -1069,9 +1333,9 @@ namespace FP_NAMESPACE
                             else
                             {
                             #if defined(FP_INTEGER_GEMV)
-                                if ((BE == 0 && BM == 7) || (BE == 0 && BM == 15))
+                                if (internal::is_fixed_point_type<BM, BE>::value)
                                 {
-                                    const T* fptr = reinterpret_cast<const T*>(&compressed_data[k]);
+                                    const float* fptr = reinterpret_cast<const float*>(&compressed_data[k]);
                                     const T rescale_p_3 = fptr[0];
                                     const T rescale_p_4 = fptr[1];
                                     const fp_type* tmp_a = reinterpret_cast<const fp_type*>(&fptr[2]);
@@ -1130,6 +1394,14 @@ namespace FP_NAMESPACE
                 matrix_vector(transpose, alpha, &x[0], beta, &y[0]);
             }
 
+            //! \brief Triangular (packed) symmetric matrix vector multiply
+            //!
+            //! Computes y = alpha * A(T) * x + beta * y.
+            //!
+            //! \param alpha scaling factor for the matrix
+            //! \param x pointer to the input vector
+            //! \param beta scaling factor for the output vector
+            //! \param y pointer to the output vector
             void symmetric_matrix_vector(const T alpha, const T* x, const T beta, T* y) const
             {
                 if (x == nullptr || y == nullptr)
@@ -1146,12 +1418,16 @@ namespace FP_NAMESPACE
                     alignas(alignment) T buffer_a[bs * bs];
 
                 #if defined(FP_INTEGER_GEMV)
+                    // the matrix vector multiplication happens directly on the
+                    // integer (fixed point) representation of the matrix
                     alignas(alignment) T tmp_y[bs];
                     std::vector<T> rescale_p_2(0);
-                    if ((BE == 0 && BM == 7) || (BE == 0 && BM == 15))
+                    if (internal::is_fixed_point_type<BM, BE>::value)
                     {
+                        // the transformation between the fixed and floating point representation
+                        // contains an additive factor which is multiplied with the input vector:
+                        // we have to account for this by summing up chunks of the vector according to the partitioning
                         rescale_p_2.reserve(n / bs + 1);
-
                         for (std::size_t i = 0, k = 0; i < n; i += bs, ++k)
                         {
                             rescale_p_2[k] = f_0;
@@ -1191,9 +1467,9 @@ namespace FP_NAMESPACE
                             else
                             {
                             #if defined(FP_INTEGER_GEMV)
-                                if ((BE == 0 && BM == 7) || (BE == 0 && BM == 15))
+                                if (internal::is_fixed_point_type<BM, BE>::value)
                                 {
-                                    const T* fptr = reinterpret_cast<const T*>(&compressed_data[k]);
+                                    const float* fptr = reinterpret_cast<const float*>(&compressed_data[k]);
                                     const T rescale_p_3 = fptr[0];
                                     const T rescale_p_4 = fptr[1];
                                     const fp_type* tmp_a = reinterpret_cast<const fp_type*>(&fptr[2]);
@@ -1263,6 +1539,14 @@ namespace FP_NAMESPACE
                 symmetric_matrix_vector(alpha, &x[0], beta, &y[0]);
             }
 
+            //! \brief Triangular solve 
+            //!
+            //! Solves for y = alpha * A(T) * x.
+            //!
+            //! \param transpose matrix transposition
+            //! \param alpha scaling factor for the matrix
+            //! \param x pointer to the output vector
+            //! \param y pointer to the input vector
             void triangular_solve(const bool transpose, const T alpha, T* x, const T* y) const
             {
                 if (x == nullptr || y == nullptr)
@@ -1302,10 +1586,10 @@ namespace FP_NAMESPACE
 
                                 // apply general matrix vector multiplication
                             #if defined(FP_INTEGER_GEMV)
-                                if ((BE == 0 && BM == 7) || (BE == 0 && BM == 15))
+                                if (internal::is_fixed_point_type<BM, BE>::value)
                                 {
-                                    const std::size_t k = (transpose ? get_offset(MT, bi, bj) : get_offset(MT, bj, bi));
-                                    const T* fptr = reinterpret_cast<const T*>(&compressed_data[k]);
+                                    const std::size_t k = (transpose ? get_offset(bi, bj) : get_offset(bj, bi));
+                                    const float* fptr = reinterpret_cast<const float*>(&compressed_data[k]);
                                     const T rescale_p_3 = fptr[0];
                                     const T rescale_p_4 = fptr[1];
                                     const fp_type* tmp_a = reinterpret_cast<const fp_type*>(&fptr[2]);
@@ -1340,7 +1624,7 @@ namespace FP_NAMESPACE
                             #endif
                                 {
                                     // decompress the 'buffer'
-                                    const std::size_t k = (transpose ? get_offset(MT, bi, bj) : get_offset(MT, bj, bi));
+                                    const std::size_t k = (transpose ? get_offset(bi, bj) : get_offset(bj, bi));
                                     fp_stream<BM, BE>::decompress(&compressed_data[k], &buffer_a[0], mm * nn);
 
                                     if (transpose)
@@ -1362,7 +1646,7 @@ namespace FP_NAMESPACE
                             }
 
                             // decompress the 'buffer'
-                            const std::size_t k = get_offset(MT, bj, bj);
+                            const std::size_t k = get_offset(bj, bj);
                             fp_stream<BM, BE>::decompress(&compressed_data[k], &buffer_a[0], (mm * (mm + 1)) / 2);
 
                             // apply triangular solve 
@@ -1387,10 +1671,10 @@ namespace FP_NAMESPACE
                                 const std::size_t nn = std::min(n - bi * bs, bs);
 
                             #if defined(FP_INTEGER_GEMV)
-                                if ((BE == 0 && BM == 7) || (BE == 0 && BM == 15))
+                                if (internal::is_fixed_point_type<BM, BE>::value)
                                 {
-                                    const std::size_t k = (transpose ? get_offset(MT, bi, bj) : get_offset(MT, bj, bi));
-                                    const T* fptr = reinterpret_cast<const T*>(&compressed_data[k]);
+                                    const std::size_t k = (transpose ? get_offset(bi, bj) : get_offset(bj, bi));
+                                    const float* fptr = reinterpret_cast<const float*>(&compressed_data[k]);
                                     const T rescale_p_3 = fptr[0];
                                     const T rescale_p_4 = fptr[1];
                                     const fp_type* tmp_a = reinterpret_cast<const fp_type*>(&fptr[2]);
@@ -1425,7 +1709,7 @@ namespace FP_NAMESPACE
                             #endif
                                 {
                                     // decompress the 'buffer'
-                                    const std::size_t k = (transpose ? get_offset(MT, bi, bj) : get_offset(MT, bj, bi));
+                                    const std::size_t k = (transpose ? get_offset(bi, bj) : get_offset(bj, bi));
                                     fp_stream<BM, BE>::decompress(&compressed_data[k], &buffer_a[0], mm * nn);
 
                                     // apply general matrix vector multiplication
@@ -1453,7 +1737,7 @@ namespace FP_NAMESPACE
                             }
 
                             // decompress the 'buffer'
-                            const std::size_t k = get_offset(MT, bj, bj);
+                            const std::size_t k = get_offset(bj, bj);
                             fp_stream<BM, BE>::decompress(&compressed_data[k], &buffer_a[0], (mm * (mm + 1)) / 2);
 
                             // apply triangular solve 
