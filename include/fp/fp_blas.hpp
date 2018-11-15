@@ -1270,7 +1270,6 @@ namespace FP_NAMESPACE
                     }
                 #endif
                     
-                    // apply matrix to 'x': diagonal blocks first
                     for (std::size_t j = 0, k = 0; j < n; j += bs)
                     {
                         const std::size_t i_start = (MT == matrix_type::upper_triangular ? j : 0);
@@ -1278,9 +1277,10 @@ namespace FP_NAMESPACE
 
                         for (std::size_t i = i_start; i < i_end; i += bs)
                         {
+                            const std::size_t mm = std::min(n - j, bs);
                             const std::size_t nn = std::min(n - i, bs);
-                        
-                            // consider diagonal block
+
+                            // skip diagonal blocks
                             if (i == j)
                             {
                                 // decompress the 'buffer'
@@ -1301,32 +1301,6 @@ namespace FP_NAMESPACE
                                     y[j + jj] += alpha * buffer_y[jj];
                                 }
 
-                                // move on to the next block
-                                k += partition.num_elements_a;
-                            }
-                            // skip non-diagonal blocks
-                            else
-                            {
-                                const std::size_t ij = (MT == matrix_type::upper_triangular ? i : j);
-                                k += ((n - ij) < bs ? partition.num_elements_c : partition.num_elements_b);
-                            }
-                        }
-                    }
-
-                    // apply matrix to 'x': non-diagonal blocks
-                    for (std::size_t j = 0, k = 0; j < n; j += bs)
-                    {
-                        const std::size_t i_start = (MT == matrix_type::upper_triangular ? j : 0);
-                        const std::size_t i_end = (MT == matrix_type::upper_triangular ? n : (j + 1));
-
-                        for (std::size_t i = i_start; i < i_end; i += bs)
-                        {
-                            const std::size_t mm = std::min(n - j, bs);
-                            const std::size_t nn = std::min(n - i, bs);
-
-                            // skip diagonal blocks
-                            if (i == j)
-                            {
                                 // move to the next block
                                 k += partition.num_elements_a;
                             }
