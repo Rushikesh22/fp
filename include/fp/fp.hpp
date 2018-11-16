@@ -611,6 +611,19 @@ namespace FP_NAMESPACE
     namespace internal
     {
     #if defined(__AVX2__) || defined(__AVX512F__)
+        namespace 
+        {
+            template <typename T, typename TT>
+            constexpr bool specialization_available()
+            {
+                constexpr bool double_or_float_to_uint8 = std::is_floating_point<T>::value && std::is_same<TT, std::uint8_t>::value;
+                constexpr bool uint8_to_double_or_float = std::is_same<T, std::uint8_t>::value && std::is_floating_point<TT>::value;
+                constexpr bool uint8_to_int32 = std::is_same<T, std::uint8_t>::value && std::is_same<T, std::int32_t>::value;
+                constexpr bool uint8_to_int16 = std::is_same<T, std::uint8_t>::value && std::is_same<T, std::int16_t>::value;
+                return double_or_float_to_uint8 || uint8_to_double_or_float || uint8_to_int32 || uint8_to_int16;
+            }
+        }
+
         //! \brief Recode between different data types using SIMD intrinsics
         //!
         //! Supported: double <-> uint8_t, uint8_t -> uint[16,32]_t
@@ -622,25 +635,31 @@ namespace FP_NAMESPACE
         //! \param n length of the input sequence
         //! \param a (optional) rescaling factor
         //! \param b (optional) rescaling factor
-        template <typename T, typename TT>
-        static void recode_simd_intrinsics(const T* in, TT* out, const std::size_t n, const double a = 0.0, const double b = 1.0)
+        template <typename T, typename TT, typename X = typename std::enable_if<!(specialization_available<T, TT>())>::type>
+        static void recode_simd_intrinsics(const T* in, TT* out, const std::size_t n, const float a = 0.0F, const float b = 1.0F)
         {
             std::cerr << "error: recode_simd_intrinsics() is not implemented for these data types" << std::endl;
         }
 
-        template <>
-        inline void recode_simd_intrinsics<double, std::uint8_t>(const double* in, std::uint8_t* out, const std::size_t n, const double a, const double b)
+        template <typename T, typename TT, typename X = typename std::enable_if<std::is_floating_point<T>::value>::type, typename Y = typename std::enable_if<std::is_same<TT, std::uint8_t>::value>::type>
+        inline void recode_simd_intrinsics(const T* in, std::uint8_t* out, const std::size_t n, const float a, const float b, const X* dummy = nullptr)
         {
+            if (!std::is_same<T, double>::value && !std::is_same<T, float>::value)
+            {
+                std::cerr << "error: floating point format is not supported" << std::endl;
+                return;
+            }
+
             // 32 8-bit words fit into an AVX2 register
             constexpr std::size_t chunk_size = 32;
-            alignas(alignment) double buffer_in[chunk_size];
+            alignas(alignment) T buffer_in[chunk_size];
             alignas(alignment) std::uint8_t buffer_out[chunk_size];
 
             for (std::size_t i = 0; i < n; i += chunk_size)
             {
                 // determine the number of elements to be compressed / packed
                 const bool full_chunk = (std::min(n - i, chunk_size) == chunk_size ? true : false);
-                const double* ptr_in = &in[i];
+                const T* ptr_in = &in[i];
                 if (!full_chunk)
                 {
                     // we want to read 'chunk_size' contiguous words: load the remainder loop data into the buffer...
@@ -652,15 +671,27 @@ namespace FP_NAMESPACE
                     ptr_in = &buffer_in[0];
                 }
                 
-                // load 8 chunks of 4 'double' words, for a total of 32 'double's, and convert them to 'float'
-                __m256 v256_in_1 = _mm256_insertf128_ps(_mm256_castps128_ps256(_mm256_cvtpd_ps(_mm256_loadu_pd(reinterpret_cast<const double*>(&ptr_in[0])))),
-                                                        _mm256_cvtpd_ps(_mm256_loadu_pd(reinterpret_cast<const double*>(&ptr_in[4]))), 1);
-                __m256 v256_in_2 = _mm256_insertf128_ps(_mm256_castps128_ps256(_mm256_cvtpd_ps(_mm256_loadu_pd(reinterpret_cast<const double*>(&ptr_in[8])))),
-                                                        _mm256_cvtpd_ps(_mm256_loadu_pd(reinterpret_cast<const double*>(&ptr_in[12]))), 1);
-                __m256 v256_in_3 = _mm256_insertf128_ps(_mm256_castps128_ps256(_mm256_cvtpd_ps(_mm256_loadu_pd(reinterpret_cast<const double*>(&ptr_in[16])))),
-                                                        _mm256_cvtpd_ps(_mm256_loadu_pd(reinterpret_cast<const double*>(&ptr_in[20]))), 1);
-                __m256 v256_in_4 = _mm256_insertf128_ps(_mm256_castps128_ps256(_mm256_cvtpd_ps(_mm256_loadu_pd(reinterpret_cast<const double*>(&ptr_in[24])))),
-                                                        _mm256_cvtpd_ps(_mm256_loadu_pd(reinterpret_cast<const double*>(&ptr_in[28]))), 1);
+                __m256 v256_in_1, v256_in_2, v256_in_3, v256_in_4;
+                if (std::is_same<T, double>::value)
+                {
+                    // load 8 chunks of 4 'double' words, for a total of 32 'double's, and convert them to 'float'
+                    v256_in_1 = _mm256_insertf128_ps(_mm256_castps128_ps256(_mm256_cvtpd_ps(_mm256_loadu_pd(reinterpret_cast<const double*>(&ptr_in[0])))),
+                                                     _mm256_cvtpd_ps(_mm256_loadu_pd(reinterpret_cast<const double*>(&ptr_in[4]))), 1);
+                    v256_in_2 = _mm256_insertf128_ps(_mm256_castps128_ps256(_mm256_cvtpd_ps(_mm256_loadu_pd(reinterpret_cast<const double*>(&ptr_in[8])))),
+                                                     _mm256_cvtpd_ps(_mm256_loadu_pd(reinterpret_cast<const double*>(&ptr_in[12]))), 1);
+                    v256_in_3 = _mm256_insertf128_ps(_mm256_castps128_ps256(_mm256_cvtpd_ps(_mm256_loadu_pd(reinterpret_cast<const double*>(&ptr_in[16])))),
+                                                     _mm256_cvtpd_ps(_mm256_loadu_pd(reinterpret_cast<const double*>(&ptr_in[20]))), 1);
+                    v256_in_4 = _mm256_insertf128_ps(_mm256_castps128_ps256(_mm256_cvtpd_ps(_mm256_loadu_pd(reinterpret_cast<const double*>(&ptr_in[24])))),
+                                                     _mm256_cvtpd_ps(_mm256_loadu_pd(reinterpret_cast<const double*>(&ptr_in[28]))), 1);
+                }
+                else
+                {
+                    // load 4 chunks of 8 'float' words, for a total of 32 'float's
+                    v256_in_1 = _mm256_loadu_ps(reinterpret_cast<const float*>(&ptr_in[0]));
+                    v256_in_2 = _mm256_loadu_ps(reinterpret_cast<const float*>(&ptr_in[8]));
+                    v256_in_3 = _mm256_loadu_ps(reinterpret_cast<const float*>(&ptr_in[16]));
+                    v256_in_4 = _mm256_loadu_ps(reinterpret_cast<const float*>(&ptr_in[24]));
+                }
 
                 // apply the rescaling so that the ouput is within the range 0.0 .. 255.0
                 __m256 v256_unpacked_1 = _mm256_mul_ps(_mm256_sub_ps(v256_in_1, _mm256_set1_ps(a)), _mm256_set1_ps(b));
@@ -690,12 +721,18 @@ namespace FP_NAMESPACE
             }
         }
 
-        template <>
-        inline void recode_simd_intrinsics<std::uint8_t, double>(const std::uint8_t* in, double* out, const std::size_t n, const double a, const double b)
+        template <typename T, typename TT, typename X = typename std::enable_if<std::is_same<T, std::uint8_t>::value>::type, typename Y = typename std::enable_if<std::is_floating_point<TT>::value>::type>
+        inline void recode_simd_intrinsics(const T* in, TT* out, const std::size_t n, const float a, const float b, const X* dummy = nullptr)
         {
+            if (!std::is_same<TT, double>::value && !std::is_same<TT, float>::value)
+            {
+                std::cerr << "error: floating point format is not supported" << std::endl;
+                return;
+            }
+
             // 32 8-bit words fit into an AVX2 register
             constexpr std::size_t chunk_size = 32;
-            alignas(alignment) double buffer_out[chunk_size];
+            alignas(alignment) TT buffer_out[chunk_size];
 
             for (std::size_t i = 0; i < n; i += chunk_size)
             {
@@ -716,15 +753,27 @@ namespace FP_NAMESPACE
                 // determine the number of elements to be unpacked / decompressed
                 const bool full_chunk = (std::min(n - i, chunk_size) == chunk_size ? true : false);
                 // write the output to the buffer in case of the loop remainder
-                double* ptr_out = (full_chunk ? &out[i] : &buffer_out[0]);
+                TT* ptr_out = (full_chunk ? &out[i] : &buffer_out[0]);
 
-                for (std::size_t ii = 0; ii < 4; ++ii)
+                if (std::is_same<TT, double>::value)
                 {
-                    // convert 32-bit integers to 'double' and rescale
-                    __m256d tmp_1 = _mm256_fmadd_pd(_mm256_cvtepi32_pd(_mm256_extracti128_si256(v256_unpacked[ii], 0)), _mm256_set1_pd(b), _mm256_set1_pd(a));
-                    __m256d tmp_2 = _mm256_fmadd_pd(_mm256_cvtepi32_pd(_mm256_extracti128_si256(v256_unpacked[ii], 1)), _mm256_set1_pd(b), _mm256_set1_pd(a));
-                    _mm256_storeu_pd(reinterpret_cast<double*>(&ptr_out[ii * 8 + 0]), tmp_1);
-                    _mm256_storeu_pd(reinterpret_cast<double*>(&ptr_out[ii * 8 + 4]), tmp_2);
+                    for (std::size_t ii = 0; ii < 4; ++ii)
+                    {
+                        // convert 32-bit integers to 'double' and rescale
+                        __m256d tmp_1 = _mm256_fmadd_pd(_mm256_cvtepi32_pd(_mm256_extracti128_si256(v256_unpacked[ii], 0)), _mm256_set1_pd(b), _mm256_set1_pd(a));
+                        __m256d tmp_2 = _mm256_fmadd_pd(_mm256_cvtepi32_pd(_mm256_extracti128_si256(v256_unpacked[ii], 1)), _mm256_set1_pd(b), _mm256_set1_pd(a));
+                        _mm256_storeu_pd(reinterpret_cast<double*>(&ptr_out[ii * 8 + 0]), tmp_1);
+                        _mm256_storeu_pd(reinterpret_cast<double*>(&ptr_out[ii * 8 + 4]), tmp_2);
+                    }
+                }
+                else
+                {
+                    for (std::size_t ii = 0; ii < 4; ++ii)
+                    {
+                        // convert 32-bit integers to 'float' and rescale
+                        __m256 tmp = _mm256_fmadd_ps(_mm256_cvtepi32_ps(v256_unpacked[ii]), _mm256_set1_ps(b), _mm256_set1_ps(a));
+                        _mm256_storeu_ps(reinterpret_cast<float*>(&ptr_out[ii * 8]), tmp);
+                    }
                 }
 
                 // flush the buffer to the output if necessary
@@ -739,7 +788,7 @@ namespace FP_NAMESPACE
         }
 
         template <>
-        inline void recode_simd_intrinsics<std::uint8_t, std::int32_t>(const std::uint8_t* in, std::int32_t* out, const std::size_t n, const double a, const double b)
+        inline void recode_simd_intrinsics<std::uint8_t, std::int32_t>(const std::uint8_t* in, std::int32_t* out, const std::size_t n, const float a, const float b)
         {
             // 32 8-bit words fit into an AVX2 register
             constexpr std::size_t chunk_size = 32;
@@ -782,9 +831,9 @@ namespace FP_NAMESPACE
                 }
             }
         }
-
+        
         template <>
-        inline void recode_simd_intrinsics<std::uint8_t, std::int16_t>(const std::uint8_t* in, std::int16_t* out, const std::size_t n, const double a, const double b)
+        inline void recode_simd_intrinsics<std::uint8_t, std::int16_t>(const std::uint8_t* in, std::int16_t* out, const std::size_t n, const float a, const float b)
         {
             // 32 8-bit words fit into an AVX2 register
             constexpr std::size_t chunk_size = 32;
@@ -818,9 +867,8 @@ namespace FP_NAMESPACE
                 }
             }
         }
-    #endif
-
-
+        #endif
+    
         //! \brief Encode floating point into fixed point numbers
         //!
         //! \tparam T floating point data type

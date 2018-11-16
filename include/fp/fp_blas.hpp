@@ -1318,12 +1318,11 @@ namespace FP_NAMESPACE
                                     const std::size_t ij = (MT == matrix_type::upper_triangular ? i : j);
                                     k += ((n - ij) < bs ? partition.num_elements_c : partition.num_elements_b);
                                     
-                                    // integer gemm : (1 x k) * (k x n) -> (1 x n)
+                                    // integer gemv
                                     const std::size_t src_idx = (transpose ? j : i);
                                     const std::size_t dst_idx = (transpose ? i : j);
-                                    // the following gemm call uses alpha=1 internally
                                     blas::gemv(L, transpose, mm, nn, &tmp_a[0], &x[src_idx], &tmp_y[0]);
-                                    // ..finalize gemm call: rescaling
+                                    // ..finalize gemv call: rescaling
                                     const T a = rescale_p_4;
                                     const T b = rescale_p_2[src_idx / bs] * rescale_p_3;
                                     for (std::size_t jj = 0; jj < (transpose ? nn : mm); ++jj)
@@ -1394,7 +1393,8 @@ namespace FP_NAMESPACE
                 #if defined(FP_INTEGER_GEMV)
                     // the matrix vector multiplication happens directly on the
                     // integer (fixed point) representation of the matrix
-                    alignas(alignment) T tmp_y[bs];
+                    //alignas(alignment) T tmp_y[bs];
+                    alignas(alignment) T tmp_y[2 * bs];
                     std::vector<T> rescale_p_2(0);
                     if (internal::is_fixed_point_type<BM, BE>::value)
                     {
@@ -1452,12 +1452,11 @@ namespace FP_NAMESPACE
                                     const std::size_t ij = (MT == matrix_type::upper_triangular ? i : j);
                                     k += ((n - ij) < bs ? partition.num_elements_c : partition.num_elements_b);
                                     
-                                    // integer gemm : (1 x k) * (k x n) -> (1 x n)
-                                    //
-                                    // the following gemm call uses alpha=1 internally
+                                    // integer gemv
+                                    #if defined(deprecated)
                                     blas::gemv(L, false, mm, nn, &tmp_a[0], &x[i], &tmp_y[0]);
                                     {
-                                        // ..finalize gemm call: rescaling
+                                        // ..finalize gemv call: rescaling
                                         const T a = rescale_p_4;
                                         const T b = rescale_p_2[i / bs] * rescale_p_3;
                                         for (std::size_t jj = 0; jj < mm; ++jj)
@@ -1465,10 +1464,9 @@ namespace FP_NAMESPACE
                                             y[j + jj] += alpha * (tmp_y[jj] * a + b);
                                         }
                                     }
-                                    // the following gemm call uses alpha=1 internally
                                     blas::gemv(L, true, mm, nn, &tmp_a[0], &x[j], &tmp_y[0]);
                                     {
-                                        // ..finalize gemm call: rescaling
+                                        // ..finalize gemv call: rescaling
                                         const T a = rescale_p_4;
                                         const T b = rescale_p_2[j / bs] * rescale_p_3;
                                         for (std::size_t ii = 0; ii < nn; ++ii)
@@ -1476,6 +1474,22 @@ namespace FP_NAMESPACE
                                             y[i + ii] += alpha * (tmp_y[ii] * a + b);
                                         }
                                     }
+                                    #else
+                                    // the following gem2v call uses alpha=1 internally
+                                    blas::gem2v(L, mm, nn, &tmp_a[0], &x[i], &tmp_y[0], &x[j], &tmp_y[bs]);
+                                    // ..finalize gemv call: rescaling
+                                    const T a = rescale_p_4;
+                                    const T b = rescale_p_2[i / bs] * rescale_p_3;
+                                    for (std::size_t jj = 0; jj < mm; ++jj)
+                                    {
+                                        y[j + jj] += alpha * (tmp_y[jj] * a + b);
+                                    }
+                                    const T c = rescale_p_2[j / bs] * rescale_p_3;
+                                    for (std::size_t ii = 0; ii < nn; ++ii)
+                                    {
+                                        y[i + ii] += alpha * (tmp_y[bs + ii] * a + c);
+                                    }
+                                    #endif
                                 }
                                 else                            
                             #endif
@@ -1568,9 +1582,7 @@ namespace FP_NAMESPACE
                                     const T rescale_p_4 = fptr[1];
                                     const fp_type* tmp_a = reinterpret_cast<const fp_type*>(&fptr[2]);
                                     
-                                    // integer gemm : (1 x k) * (k x n) -> (1 x n)
-                                    //
-                                    // the following gemm call uses alpha=1 internally
+                                    // integer gemv
                                     T rescale_dummy, rescale_p_1, rescale_p_2;
                                     rescale_p_1 = f_1;
                                     rescale_p_2 = f_0;
@@ -1586,7 +1598,7 @@ namespace FP_NAMESPACE
                                     {
                                         blas::gemv(L, false, mm, nn, &tmp_a[0], &y[bi * bs], &tmp_x[0]);
                                     }
-                                    // ..finalize gemm call: rescaling
+                                    // ..finalize gemv call: rescaling
                                     const T a = rescale_p_4;
                                     const T b = rescale_p_2 * rescale_p_3;
                                     for (std::size_t ii = 0; ii < mm; ++ii)
@@ -1653,9 +1665,7 @@ namespace FP_NAMESPACE
                                     const T rescale_p_4 = fptr[1];
                                     const fp_type* tmp_a = reinterpret_cast<const fp_type*>(&fptr[2]);
                                     
-                                    // integer gemm : (1 x k) * (k x n) -> (1 x n)
-                                    //
-                                    // the following gemm call uses alpha=1 internally
+                                    // the following gemv call uses alpha=1 internally
                                     T rescale_dummy, rescale_p_1, rescale_p_2;
                                     rescale_p_1 = f_1;
                                     rescale_p_2 = f_0;
@@ -1671,7 +1681,7 @@ namespace FP_NAMESPACE
                                     {
                                         blas::gemv(L, false, mm, nn, &tmp_a[0], &y[bi * bs], &tmp_x[0]);
                                     }
-                                    // ..finalize gemm call: rescaling
+                                    // ..finalize gemv call: rescaling
                                     const T a = rescale_p_1 * rescale_p_4;
                                     const T b = rescale_p_2 * rescale_p_3;
                                     for (std::size_t ii = 0; ii < mm; ++ii)

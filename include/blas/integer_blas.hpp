@@ -45,14 +45,14 @@ namespace FP_NAMESPACE
             constexpr T_2 f_0 = static_cast<T_2>(0.0);
             constexpr T_2 f_1 = static_cast<T_2>(1.0);
 
-            if (n == 0) return;
+            if (m == 0 || n == 0) return;
 
             if ((transpose && layout == matrix_layout::rowmajor) ||
                 (!transpose && layout == matrix_layout::colmajor))
             {
                 // matrix extent
-                const std::size_t N = (transpose ? n : m);
                 const std::size_t M = (transpose ? m : n);
+                const std::size_t N = (transpose ? n : m);
 
                 // set the output vector to zero: we will accumulate on it
                 for (std::size_t j = 0; j < N; ++j)
@@ -124,8 +124,8 @@ namespace FP_NAMESPACE
             else
             {
                 // matrix extent
-                const std::size_t N = (transpose ? n : m);
                 const std::size_t M = (transpose ? m : n);
+                const std::size_t N = (transpose ? n : m);                
 
                 // set the output vector to zero: we will accumulate on it
                 for (std::size_t j = 0; j < N; ++j)
@@ -196,6 +196,124 @@ namespace FP_NAMESPACE
                             tmp += a[j * M + i] * x[i];
                         }
                         y[j] = tmp;
+                    }
+                }
+            }
+        }
+        
+        template <typename T_1, typename T_2, typename X = typename std::enable_if<std::is_integral<T_1>::value && std::is_floating_point<T_2>::value>::type>
+        static void gem2v(const matrix_layout layout, const std::size_t m, const std::size_t n, const T_1* a, const T_2* x_1, T_2* y_1, const T_2* x_2, T_2* y_2)
+        {
+            static_assert(std::is_integral<T_1>::value && (8 * sizeof(T_1) <= 16) && std::is_floating_point<T_2>::value, "error: only integer matrix and floating point vectors are allowed");
+
+            constexpr T_2 f_0 = static_cast<T_2>(0.0);
+            constexpr T_2 f_1 = static_cast<T_2>(1.0);
+
+            if (m == 0 || n == 0) return;
+
+            const T_2* ptr_x_1 = (layout == matrix_layout::rowmajor ? x_1 : x_2);
+            const T_2* ptr_x_2 = (layout == matrix_layout::rowmajor ? x_2 : x_1);
+
+            T_2* ptr_y_1 = (layout == matrix_layout::rowmajor ? y_1 : y_2);
+            T_2* ptr_y_2 = (layout == matrix_layout::rowmajor ? y_2 : y_1);
+
+            // matrix extent                    
+            const std::size_t N = (layout == matrix_layout::rowmajor ? m : n);
+            const std::size_t M = (layout == matrix_layout::rowmajor ? n : m);
+
+            // set the output vectors to zero: we will accumulate on them
+            for (std::size_t j = 0; j < N; ++j)
+            {
+                ptr_y_1[j] = f_0;
+            }
+
+            for (std::size_t j = 0; j < M; ++j)
+            {
+                ptr_y_2[j] = f_0;
+            }
+
+        #if defined(__AVX2__) || defined(__AVX512F__)
+            // use SIMD intrinsics only if the input matrix is of 8-bit integer type
+            constexpr bool use_simd_intrinsics = std::is_same<T_1, std::uint8_t>::value;
+            if (use_simd_intrinsics)
+            {
+                // 32 8-bit integers fit into one AVX2 register
+                constexpr std::size_t chunk_size = 32;
+                // we need to operate some more numbers than 32 to get performance
+                constexpr std::size_t chunks = 4;
+                // if 'M' is too small, load multiple rows at once and operate on the respective tile
+                if (M < (chunks * chunk_size))
+                {
+                    // determine the number of rows to be loaded
+                    const std::size_t inc_j = (chunks * chunk_size + (M - 1)) / M;
+                    alignas(alignment) std::int16_t buffer_a[inc_j * M];
+                    // matrix vector multiplication on the current block
+                    for (std::size_t j = 0; j < N; j += inc_j)
+                    {
+                        // unpack 8-bit into 16-bit integers: performance reasons
+                        const std::size_t jj_max = std::min(N - j, inc_j);
+                        internal::recode_simd_intrinsics<T_1, std::int16_t>(&a[j * M], &buffer_a[0], jj_max * M);
+
+                        // matrix vector multiplication on the tile loaded
+                        for (std::size_t jj = 0; jj < jj_max; ++jj)
+                        {
+                            T_2 tmp = f_0;
+                            for (std::size_t i = 0; i < M; ++i)
+                            {
+                                tmp += buffer_a[jj * M + i] * ptr_x_1[i];
+                            }
+                            ptr_y_1[j + jj] = tmp;
+                        }
+
+                        for (std::size_t jj = 0; jj < jj_max; ++jj)
+                        {
+                            for (std::size_t i = 0; i < M; ++i)
+                            {
+                                ptr_y_2[i] += buffer_a[jj * M + i] * ptr_x_2[j + jj];
+                            }
+                        }
+                    }
+                }
+                else
+                {
+                    alignas(alignment) std::int16_t buffer_a[M];
+                    // matrix vector multiplication on the current block
+                    for (std::size_t j = 0; j < N; ++j)
+                    {
+                        // unpack 8-bit into 16-bit integers: performance reasons
+                        internal::recode_simd_intrinsics<T_1, std::int16_t>(&a[j * M], &buffer_a[0], M);
+                    
+                        // matrix vector multiplication on the row loaded
+                        T_2 tmp = f_0;
+                        for (std::size_t i = 0; i < M; ++i)
+                        {
+                            tmp += buffer_a[i] * ptr_x_1[i];
+                        }
+                        ptr_y_1[j] = tmp;
+
+                        for (std::size_t i = 0; i < M; ++i)
+                        {
+                            ptr_y_2[i] += buffer_a[i] * ptr_x_2[j];
+                        }
+                    }
+                }
+            }
+            else
+        #endif
+            {
+                // matrix vector multiplication on the current block
+                for (std::size_t j = 0; j < N; ++j)
+                {
+                    T_2 tmp = f_0;
+                    for (std::size_t i = 0; i < M; ++i)
+                    {
+                        tmp += a[j * M + i] * ptr_x_1[i];
+                    }
+                    ptr_y_1[j] = tmp;
+                
+                    for (std::size_t i = 0; i < M; ++i)
+                    {
+                        ptr_y_2[j] += a[j * M + i] * ptr_x_2[i];
                     }
                 }
             }
