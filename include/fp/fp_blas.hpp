@@ -1452,32 +1452,9 @@ namespace FP_NAMESPACE
                                     const std::size_t ij = (MT == matrix_type::upper_triangular ? i : j);
                                     k += ((n - ij) < bs ? partition.num_elements_c : partition.num_elements_b);
                                     
-                                    // integer gemv
-                                    #if defined(deprecated)
-                                    blas::gemv(L, false, mm, nn, &tmp_a[0], &x[i], &tmp_y[0]);
-                                    {
-                                        // ..finalize gemv call: rescaling
-                                        const T a = rescale_p_4;
-                                        const T b = rescale_p_2[i / bs] * rescale_p_3;
-                                        for (std::size_t jj = 0; jj < mm; ++jj)
-                                        {
-                                            y[j + jj] += alpha * (tmp_y[jj] * a + b);
-                                        }
-                                    }
-                                    blas::gemv(L, true, mm, nn, &tmp_a[0], &x[j], &tmp_y[0]);
-                                    {
-                                        // ..finalize gemv call: rescaling
-                                        const T a = rescale_p_4;
-                                        const T b = rescale_p_2[j / bs] * rescale_p_3;
-                                        for (std::size_t ii = 0; ii < nn; ++ii)
-                                        {
-                                            y[i + ii] += alpha * (tmp_y[ii] * a + b);
-                                        }
-                                    }
-                                    #else
-                                    // the following gem2v call uses alpha=1 internally
+                                    // integer gem2v call
                                     blas::gem2v(L, mm, nn, &tmp_a[0], &x[i], &tmp_y[0], &x[j], &tmp_y[bs]);
-                                    // ..finalize gemv call: rescaling
+                                    // ..finalize gem2v call: rescaling
                                     const T a = rescale_p_4;
                                     const T b = rescale_p_2[i / bs] * rescale_p_3;
                                     for (std::size_t jj = 0; jj < mm; ++jj)
@@ -1489,7 +1466,6 @@ namespace FP_NAMESPACE
                                     {
                                         y[i + ii] += alpha * (tmp_y[bs + ii] * a + c);
                                     }
-                                    #endif
                                 }
                                 else                            
                             #endif

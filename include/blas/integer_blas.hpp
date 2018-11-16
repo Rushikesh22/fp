@@ -19,9 +19,6 @@ namespace FP_NAMESPACE
     {
         using FP_NAMESPACE::internal::alignment;
 
-        template <typename T_1, typename T_2, typename X = typename std::enable_if<!(std::is_integral<T_1>::value && std::is_floating_point<T_2>::value)>::type>
-        static void gemv(const matrix_layout layout, const bool transpose, const std::size_t m, const std::size_t n, const T_1* a, const T_2* x, T_2* y, const X* dummy = nullptr);
-
         //! \brief General matrix vector multiplication with integer matrix and floating point vectors
         //!
         //! The integer matrix 'a' is assumed to be either of 8 or 16-bit integer type.
@@ -37,6 +34,9 @@ namespace FP_NAMESPACE
         //! \param a matrix
         //! \param x input vector
         //! \param y output vector
+        template <typename T_1, typename T_2, typename X = typename std::enable_if<!(std::is_integral<T_1>::value && std::is_floating_point<T_2>::value)>::type>
+        static void gemv(const matrix_layout layout, const bool transpose, const std::size_t m, const std::size_t n, const T_1* a, const T_2* x, T_2* y, const X* dummy = nullptr);
+
         template <typename T_1, typename T_2, typename X = typename std::enable_if<std::is_integral<T_1>::value && std::is_floating_point<T_2>::value>::type>
         static void gemv(const matrix_layout layout, const bool transpose, const std::size_t m, const std::size_t n, const T_1* a, const T_2* x, T_2* y)
         {
@@ -201,6 +201,28 @@ namespace FP_NAMESPACE
             }
         }
         
+        //! \brief General matrix vector multiplication with integer matrix and floating point vectors
+        //!
+        //! This matrix applies matrix 'a' to 'x_1' and T('a') to 'x_2' and writes the output to 'y_1' and 'y_2'.
+        //!
+        //! The integer matrix 'a' is assumed to be either of 8 or 16-bit integer type.
+        //! Other than for the cblas_*gemv call, there is no 'alpha' and 'beta' parameters:
+        //! they are 1.0 and 0.0 implicitly!
+        //!
+        //! \tparam T_1 integer input type of matrix 'a'
+        //! \tparam T_2 floating point input and output type of vectors 'x' and 'y'
+        //! \param layout row or column major order
+        //! \param transpose transpose matrix 'a'
+        //! \param m number of rows of matrix 'a'
+        //! \param n number of columns of matrix 'a'
+        //! \param a matrix
+        //! \param x_1 input vector 1
+        //! \param y_1 output vector 1
+        //! \param x_2 input vector 2
+        //! \param y_2 output vector 2
+        template <typename T_1, typename T_2, typename X = typename std::enable_if<!(std::is_integral<T_1>::value && std::is_floating_point<T_2>::value)>::type>
+        static void gem2v(const matrix_layout layout, const std::size_t m, const std::size_t n, const T_1* a, const T_2* x_1, T_2* y_1, const T_2* x_2, T_2* y_2, const X* dummy = nullptr);
+
         template <typename T_1, typename T_2, typename X = typename std::enable_if<std::is_integral<T_1>::value && std::is_floating_point<T_2>::value>::type>
         static void gem2v(const matrix_layout layout, const std::size_t m, const std::size_t n, const T_1* a, const T_2* x_1, T_2* y_1, const T_2* x_2, T_2* y_2)
         {
@@ -260,17 +282,11 @@ namespace FP_NAMESPACE
                             T_2 tmp = f_0;
                             for (std::size_t i = 0; i < M; ++i)
                             {
-                                tmp += buffer_a[jj * M + i] * ptr_x_1[i];
+                                const std::int32_t tmp_a = buffer_a[jj * M + i];
+                                tmp += tmp_a * ptr_x_1[i];
+                                ptr_y_2[i] += tmp_a * ptr_x_2[j + jj];
                             }
                             ptr_y_1[j + jj] = tmp;
-                        }
-
-                        for (std::size_t jj = 0; jj < jj_max; ++jj)
-                        {
-                            for (std::size_t i = 0; i < M; ++i)
-                            {
-                                ptr_y_2[i] += buffer_a[jj * M + i] * ptr_x_2[j + jj];
-                            }
                         }
                     }
                 }
@@ -287,14 +303,11 @@ namespace FP_NAMESPACE
                         T_2 tmp = f_0;
                         for (std::size_t i = 0; i < M; ++i)
                         {
-                            tmp += buffer_a[i] * ptr_x_1[i];
+                            const std::int32_t tmp_a = buffer_a[i];
+                            tmp += tmp_a * ptr_x_1[i];
+                            ptr_y_2[i] += tmp_a * ptr_x_2[j];
                         }
                         ptr_y_1[j] = tmp;
-
-                        for (std::size_t i = 0; i < M; ++i)
-                        {
-                            ptr_y_2[i] += buffer_a[i] * ptr_x_2[j];
-                        }
                     }
                 }
             }
@@ -307,14 +320,11 @@ namespace FP_NAMESPACE
                     T_2 tmp = f_0;
                     for (std::size_t i = 0; i < M; ++i)
                     {
-                        tmp += a[j * M + i] * ptr_x_1[i];
+                        const std::int32_t tmp_a = a[j * M + i];
+                        tmp += tmp_a * ptr_x_1[i];
+                        ptr_y_2[i] += tmp_a * ptr_x_2[j];
                     }
                     ptr_y_1[j] = tmp;
-                
-                    for (std::size_t i = 0; i < M; ++i)
-                    {
-                        ptr_y_2[j] += a[j * M + i] * ptr_x_2[i];
-                    }
                 }
             }
         }
