@@ -232,6 +232,8 @@ void kernel(const real_t alpha, const real_t beta, const bool transpose,
 
     // create packed matrix
     std::vector<std::vector<real_t>> a_packed(a.size());
+
+    #pragma omp parallel for schedule(static)
     for (std::size_t k = 0; k < a.size(); ++k)
     {
         a_packed[k].reserve((n * (n + 1)) / 2);
