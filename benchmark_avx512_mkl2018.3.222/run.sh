@@ -22,20 +22,15 @@ do
     do
 	echo "matrix size n = ${n}"
 
-	if [ "${n}" == "447" ]
-	then
-	    N=3200
-	else
-	    N=320
-	fi
+	N=640
 
 	echo "general_matrix_vector"
 
 	for i in 1 2 3 4 5 6
 	do
 	    echo "reference: n${n} N${N} i${i}"
-	    ./bin/test_general_matrix_vector.x ${n} ${n} ${N} 1 1 > skylake_general_matrix_vector_${m}_n${n}_threads${omp_threads}_${i}.log
-	    cat skylake_general_matrix_vector_${m}_n${n}_threads${omp_threads}_${i}.log | grep gflops
+	    ./bin/test_general_matrix_vector.x ${n} ${n} ${N} 1 1 >> skylake_general_matrix_vector_${n}_${m}.log
+	    cat skylake_general_matrix_vector_${n}_${m}.log | grep gflops
 	done
 	
 	for b in 8 16 32 64 128 256
@@ -43,7 +38,7 @@ do
 	    for i in 1 2 3 4 5 6
 	    do
 		echo "own: n${n} N${N} bs${b} i${i}"
-		./bin/test_general_matrix_vector.x ${n} ${n} ${N} ${b} 0 > skylake_general_matrix_vector_${m}_n${n}_bs${b}_threads${omp_threads}_${i}.log
+		./bin/test_general_matrix_vector.x ${n} ${n} ${N} ${b} 0 >> skylake_general_matrix_vector_${m}_n${n}_bs${b}_threads${omp_threads}_${i}.log
 		cat skylake_general_matrix_vector_${m}_n${n}_bs${b}_threads${omp_threads}_${i}.log | grep gflops
 	    done
 	done
@@ -53,8 +48,8 @@ do
 	for i in 1 2 3 4 5 6
 	do
 	    echo "reference: n${n} N${N} i${i}"
-	    ./bin/test_triangular_matrix_vector.x ${n} ${N} 1 0 1 > skylake_triangular_matrix_vector_${m}_n${n}_threads${omp_threads}_${i}.log
-	    cat skylake_triangular_matrix_vector_${m}_n${n}_threads${omp_threads}_${i}.log | grep gflops
+	    ./bin/test_triangular_matrix_vector.x ${n} ${N} 1 0 1 >> skylake_triangular_matrix_vector_${n}_${m}.log
+	    cat skylake_triangular_matrix_vector_${n}_${m}.log | grep gflops
 	done
 	
 	for b in 8 16 32 64 128 256
@@ -62,7 +57,7 @@ do
 	    for i in 1 2 3 4 5 6
 	    do
 		echo "own: n${n} N${N} bs${b} i${i}"
-		./bin/test_triangular_matrix_vector.x ${n} ${N} ${b} 0 0 > skylake_triangular_matrix_vector_${m}_n${n}_bs${b}_threads${omp_threads}_${i}.log
+		./bin/test_triangular_matrix_vector.x ${n} ${N} ${b} 0 0 >> skylake_triangular_matrix_vector_${m}_n${n}_bs${b}_threads${omp_threads}_${i}.log
 		cat skylake_triangular_matrix_vector_${m}_n${n}_bs${b}_threads${omp_threads}_${i}.log | grep gflops
 	    done
 	done
@@ -72,8 +67,8 @@ do
 	for i in 1 2 3 4 5 6
 	do
 	    echo "reference: n${n} N${N} i${i}"
-	    ./bin/test_triangular_matrix_vector.x ${n} ${N} 1 1 1 > skylake_symmetric_triangular_matrix_vector_${m}_n${n}_threads${omp_threads}_${i}.log
-	    cat skylake_symmetric_triangular_matrix_vector_${m}_n${n}_threads${omp_threads}_${i}.log | grep gflops
+	    ./bin/test_triangular_matrix_vector.x ${n} ${N} 1 1 1 >> skylake_symmetric_triangular_matrix_vector_${n}_${m}.log
+	    cat skylake_symmetric_triangular_matrix_vector_${n}_${m}.log | grep gflops
 	done
 	
 	for b in 8 16 32 64 128 256
@@ -81,7 +76,7 @@ do
 	    for i in 1 2 3 4 5 6
 	    do
 		echo "own: n${n} N${N} bs${b} i${i}"
-		./bin/test_triangular_matrix_vector.x ${n} ${N} ${b} 1 0 > skylake_symmetric_triangular_matrix_vector_${m}_n${n}_bs${b}_threads${omp_threads}_${i}.log
+		./bin/test_triangular_matrix_vector.x ${n} ${N} ${b} 1 0 >> skylake_symmetric_triangular_matrix_vector_${m}_n${n}_bs${b}_threads${omp_threads}_${i}.log
 		cat skylake_symmetric_triangular_matrix_vector_${m}_n${n}_bs${b}_threads${omp_threads}_${i}.log | grep gflops
 	    done
 	done
@@ -91,8 +86,8 @@ do
 	for i in 1 2 3 4 5 6
 	do
 	    echo "reference: n${n} N${N} i${i}"
-	    ./bin/test_triangular_solve.x ${n} ${N} 1 1 > skylake_triangular_solve_${m}_n${n}_threads${omp_threads}_${i}.log
-	    cat skylake_triangular_solve_${m}_n${n}_threads${omp_threads}_${i}.log | grep gflops
+	    ./bin/test_triangular_solve.x ${n} ${N} 1 1 >> skylake_triangular_solve_${n}_${m}.log
+	    cat skylake_triangular_solve_${n}_${m}.log | grep gflops
 	done
 	
 	for b in 8 16 32 64 128 256
@@ -100,7 +95,7 @@ do
 	    for i in 1 2 3 4 5 6
 	    do
 		echo "own: n${n} N${N} bs${b} i${i}"
-		./bin/test_triangular_solve.x ${n} ${N} ${b} 0 > skylake_triangular_solve_${m}_n${n}_bs${b}_threads${omp_threads}_${i}.log
+		./bin/test_triangular_solve.x ${n} ${N} ${b} 0 >> skylake_triangular_solve_${m}_n${n}_bs${b}_threads${omp_threads}_${i}.log
 		cat skylake_triangular_solve_${m}_n${n}_bs${b}_threads${omp_threads}_${i}.log | grep gflops
 	    done
 	done
