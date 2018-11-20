@@ -32,7 +32,7 @@ constexpr std::size_t measurement = 1;
 void kernel(const real_t alpha, const bool transpose,
     const std::size_t n,
     const std::vector<std::vector<real_t>>& a,
-    const std::vector<fp_matrix>& a_compressed,
+    const std::vector<std::vector<fp_matrix>>& a_compressed,
     const std::vector<std::vector<real_t>>& x_ref,
     std::vector<std::vector<real_t>>& x,
     std::vector<std::vector<real_t>>& y,
@@ -64,55 +64,62 @@ int main(int argc, char** argv)
 #endif
 
     // create matrices and vectors
+    const std::size_t max_threads = omp_get_max_threads();
     std::vector<std::vector<real_t>> a(num_matrices), x(num_matrices), x_ref(num_matrices), y(num_matrices);
-    std::vector<fp_matrix> a_compressed;
-    a_compressed.reserve(num_matrices);
-    for (std::size_t k = 0; k < num_matrices; ++k)
+    std::vector<std::vector<fp_matrix>> a_compressed(max_threads);
+    
+    #pragma omp parallel
     {
-        a[k].reserve(n * n);
-        srand48(k + 1);
-        for (std::size_t j = 0; j < n; ++j)
+        const std::size_t thread_id = omp_get_thread_num();
+        std::uint32_t seed = 1 + thread_id;
+        
+        #pragma omp for schedule(static)      
+        for (std::size_t k = 0; k < num_matrices; ++k)
         {
-            if ((upper_matrix) && (L == fw::blas::matrix_layout::rowmajor) ||
-                (!upper_matrix) && (L == fw::blas::matrix_layout::colmajor))
+            a[k].reserve(n * n);
+            for (std::size_t j = 0; j < n; ++j)
             {
-                for (std::size_t i = 0; i < j; ++i)
+                if ((upper_matrix) && (L == fw::blas::matrix_layout::rowmajor) ||
+                    (!upper_matrix) && (L == fw::blas::matrix_layout::colmajor))
                 {
-                    a[k][j * n + i] = 0.0;
+                    for (std::size_t i = 0; i < j; ++i)
+                    {
+                        a[k][j * n + i] = 0.0;
+                    }
+                    for (std::size_t i = j; i < n; ++i)
+                    {
+                        a[k][j * n + i] = 0.9 + 0.2 * rand_r(&seed) / RAND_MAX;
+                    }
                 }
-                for (std::size_t i = j; i < n; ++i)
+                else
                 {
-                    a[k][j * n + i] = 0.9 + 0.2 * drand48();
+                    for (std::size_t i = 0; i <= j; ++i)
+                    {
+                        a[k][j * n + i] = 0.9 + 0.2 * rand_r(&seed) / RAND_MAX;
+                    }
+                    for (std::size_t i = (j + 1); i < n; ++i)
+                    {
+                        a[k][j * n + i] = 0.0;
+                    }
                 }
             }
-            else
+
+            x_ref[k].reserve(n);
+            for (std::size_t i = 0; i < n; ++i)
             {
-                for (std::size_t i = 0; i <= j; ++i)
-                {
-                    a[k][j * n + i] = 0.9 + 0.2 * drand48();
-                }
-                for (std::size_t i = (j + 1); i < n; ++i)
-                {
-                    a[k][j * n + i] = 0.0;
-                }
+                x_ref[k][i] = 0.95 + 0.1 * rand_r(&seed) / RAND_MAX;
             }
-        }
 
-        x_ref[k].reserve(n);
-        for (std::size_t i = 0; i < n; ++i)
-        {
-            x_ref[k][i] = 0.95 + 0.1 * drand48();
-        }
+            std::array<std::size_t, 1> extent({n});
+            a_compressed[thread_id].emplace_back(a[k], n, extent, bs);
 
-        std::array<std::size_t, 1> extent({n});
-        a_compressed.emplace_back(a[k], n, extent, bs);
-
-        x[k].reserve(n);
-        y[k].reserve(n);
-        for (std::size_t i = 0; i < n; ++i)
-        {
-            x[k][i] = 0.0;
-            y[k][i] = 0.0;
+            x[k].reserve(n);
+            y[k].reserve(n);
+            for (std::size_t i = 0; i < n; ++i)
+            {
+                x[k][i] = 0.0;
+                y[k][i] = 0.0;
+            }
         }
     }
 
@@ -166,7 +173,7 @@ int main(int argc, char** argv)
 void kernel(const real_t alpha, const bool transpose,
     const std::size_t n,
     const std::vector<std::vector<real_t>>& a,
-    const std::vector<fp_matrix>& a_compressed,
+    const std::vector<std::vector<fp_matrix>>& a_compressed,
     const std::vector<std::vector<real_t>>& x_ref,
     std::vector<std::vector<real_t>>& x,
     std::vector<std::vector<real_t>>& y,
@@ -187,7 +194,7 @@ void kernel(const real_t alpha, const bool transpose,
     }
     else
     {
-        std::cout << "mode: fp_matrix, BE = " << BE << ", BM = " << BM << " (matrix memory consumption: " << a.size() * a_compressed[0].memory_footprint_bytes() / (1024 * 1024) << " MiB)" << std::endl;
+        std::cout << "mode: fp_matrix, BE = " << BE << ", BM = " << BM << " (matrix memory consumption: " << a.size() * a_compressed[0][0].memory_footprint_bytes() / (1024 * 1024) << " MiB)" << std::endl;
     }
 
     // create packed matrix
@@ -228,6 +235,13 @@ void kernel(const real_t alpha, const bool transpose,
 
     #pragma omp parallel
     {
+        const std::size_t thread_id = omp_get_thread_num();
+        std::size_t k_offset = 0;
+        for (std::size_t k = 0; k < thread_id; ++k)
+        {
+            k_offset += a_compressed[k].size();
+        }
+
         for (std::size_t l = 0; l < warmup; ++l)
         {
             if (use_blas)
@@ -240,10 +254,9 @@ void kernel(const real_t alpha, const bool transpose,
             }
             else
             {
-                #pragma omp for
-                for (std::size_t k = 0; k < a.size(); ++k)
+                for (std::size_t k = 0; k < a_compressed[thread_id].size(); ++k)
                 {
-                    fp_triangular_solve(transpose, alpha, a_compressed[k], x[k], y[k]);
+                    fp_triangular_solve(transpose, alpha, a_compressed[thread_id][k], x[k_offset + k], y[k_offset + k]);
                 }
             }
         }
@@ -268,10 +281,9 @@ void kernel(const real_t alpha, const bool transpose,
             }
             else
             {
-                #pragma omp for
-                for (std::size_t k = 0; k < a.size(); ++k)
+                for (std::size_t k = 0; k < a_compressed[thread_id].size(); ++k)
                 {
-                    fp_triangular_solve(transpose, alpha, a_compressed[k], x[k], y[k]);
+                    fp_triangular_solve(transpose, alpha, a_compressed[thread_id][k], x[k_offset + k], y[k_offset + k]);
                 }
             }
         }

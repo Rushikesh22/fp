@@ -32,7 +32,7 @@ constexpr std::size_t measurement = 1;
 void kernel(const real_t alpha, const real_t beta, const bool transpose,
     const std::size_t n,
     const std::vector<std::vector<real_t>>& a,
-    const std::vector<fp_matrix>& a_compressed,
+    const std::vector<std::vector<fp_matrix>>& a_compressed,
     const std::vector<std::vector<real_t>>& x,
     std::vector<std::vector<real_t>>& y_ref,
     std::vector<std::vector<real_t>>& y,
@@ -66,71 +66,78 @@ int main(int argc, char** argv)
     #endif
 
     // create matrices and vectors
+    const std::size_t max_threads = omp_get_max_threads();
     std::vector<std::vector<real_t>> a(num_matrices), x(num_matrices), y_ref(num_matrices), y(num_matrices);
-    std::vector<fp_matrix> a_compressed;
-    a_compressed.reserve(num_matrices);
-    for (std::size_t k = 0; k < num_matrices; ++k)
-    {
-        a[k].reserve(n * n);
-        srand48(k + 1);
-        for (std::size_t j = 0; j < n; ++j)
-        {
-            if ((upper_matrix) && (L == fw::blas::matrix_layout::rowmajor) ||
-                (!upper_matrix) && (L == fw::blas::matrix_layout::colmajor))
-            {
-                for (std::size_t i = 0; i < j; ++i)
-                {
-                    a[k][j * n + i] = 0.0;
-                }
-                for (std::size_t i = j; i < n; ++i)
-                {
-                    a[k][j * n + i] = 0.9 + 0.2 * drand48();
-                }
-            }
-            else
-            {
-                for (std::size_t i = 0; i <= j; ++i)
-                {
-                    a[k][j * n + i] = 0.9 + 0.2 * drand48();
-                }
-                for (std::size_t i = (j + 1); i < n; ++i)
-                {
-                    a[k][j * n + i] = 0.0;
-                }
-            }
-        }
+    std::vector<std::vector<fp_matrix>> a_compressed(max_threads);
 
-        if (symmetric)
+    #pragma omp parallel
+    {
+        const std::size_t thread_id = omp_get_thread_num();
+        std::uint32_t seed = 1 + thread_id;
+        
+        #pragma omp for schedule(static)    
+        for (std::size_t k = 0; k < num_matrices; ++k)
         {
+            a[k].reserve(n * n);
             for (std::size_t j = 0; j < n; ++j)
             {
-                const std::size_t i_start = (upper_matrix ? 0 : j + 1);
-                const std::size_t i_end = (upper_matrix ? j : n);
-
-                for (std::size_t i = i_start; i < i_end; ++i)
+                if ((upper_matrix) && (L == fw::blas::matrix_layout::rowmajor) ||
+                    (!upper_matrix) && (L == fw::blas::matrix_layout::colmajor))
                 {
-                    a[k][fw::blas::idx<L>(j, i, n, n)] = a[k][fw::blas::idx<L>(i, j, n, n)];
+                    for (std::size_t i = 0; i < j; ++i)
+                    {
+                        a[k][j * n + i] = 0.0;
+                    }
+                    for (std::size_t i = j; i < n; ++i)
+                    {
+                        a[k][j * n + i] = 0.9 + 0.2 * rand_r(&seed) / RAND_MAX;
+                    }
+                }
+                else
+                {
+                    for (std::size_t i = 0; i <= j; ++i)
+                    {
+                        a[k][j * n + i] = 0.9 + 0.2 * rand_r(&seed) / RAND_MAX;
+                    }
+                    for (std::size_t i = (j + 1); i < n; ++i)
+                    {
+                        a[k][j * n + i] = 0.0;
+                    }
                 }
             }
-        }
 
-        x[k].reserve(n);
-        for (std::size_t i = 0; i < n; ++i)
-        {
-            x[k][i] = 0.9 + 0.2 * drand48();
-        }
+            if (symmetric)
+            {
+                for (std::size_t j = 0; j < n; ++j)
+                {
+                    const std::size_t i_start = (upper_matrix ? 0 : j + 1);
+                    const std::size_t i_end = (upper_matrix ? j : n);
 
-        std::array<std::size_t, 1> extent({n});
-        a_compressed.emplace_back(a[k], n, extent, bs);
+                    for (std::size_t i = i_start; i < i_end; ++i)
+                    {
+                        a[k][fw::blas::idx<L>(j, i, n, n)] = a[k][fw::blas::idx<L>(i, j, n, n)];
+                    }
+                }
+            }
 
-        y_ref[k].reserve(n);
-        y[k].reserve(n);
-        for (std::size_t i = 0; i < n; ++i)
-        {
-            y_ref[k][i] = 0.0;
-            y[k][i] = 0.0;
+            x[k].reserve(n);
+            for (std::size_t i = 0; i < n; ++i)
+            {
+                x[k][i] = 0.9 + 0.2 * rand_r(&seed) / RAND_MAX;
+            }
+
+            std::array<std::size_t, 1> extent({n});
+            a_compressed[thread_id].emplace_back(a[k], n, extent, bs);
+
+            y_ref[k].reserve(n);
+            y[k].reserve(n);
+            for (std::size_t i = 0; i < n; ++i)
+            {
+                y_ref[k][i] = 0.0;
+                y[k][i] = 0.0;
+            }
+            
         }
-        
     }
 
     #if defined(BENCHMARK)
@@ -198,7 +205,7 @@ int main(int argc, char** argv)
 void kernel(const real_t alpha, const real_t beta, const bool transpose,
     const std::size_t n,
     const std::vector<std::vector<real_t>>& a,
-    const std::vector<fp_matrix>& a_compressed,
+    const std::vector<std::vector<fp_matrix>>& a_compressed,
     const std::vector<std::vector<real_t>>& x,
     std::vector<std::vector<real_t>>& y_ref,
     std::vector<std::vector<real_t>>& y,
@@ -220,7 +227,7 @@ void kernel(const real_t alpha, const real_t beta, const bool transpose,
     }
     else
     {
-        std::cout << "mode: fp_matrix, BE = " << BE << ", BM = " << BM << " (matrix memory consumption: " << a.size() * a_compressed[0].memory_footprint_bytes() / (1024 * 1024) << " MiB)" << std::endl;
+        std::cout << "mode: fp_matrix, BE = " << BE << ", BM = " << BM << " (matrix memory consumption: " << a.size() * a_compressed[0][0].memory_footprint_bytes() / (1024 * 1024) << " MiB)" << std::endl;
     }
 
     // create packed matrix
@@ -261,6 +268,13 @@ void kernel(const real_t alpha, const real_t beta, const bool transpose,
 
     #pragma omp parallel
     {
+        const std::size_t thread_id = omp_get_thread_num();
+        std::size_t k_offset = 0;
+        for (std::size_t k = 0; k < thread_id; ++k)
+        {
+            k_offset += a_compressed[k].size();
+        }
+
         for (std::size_t l = 0; l < warmup; ++l)
         {
             if (use_blas)
@@ -273,10 +287,9 @@ void kernel(const real_t alpha, const real_t beta, const bool transpose,
             }
             else
             {
-                #pragma omp for
-                for (std::size_t k = 0; k < a.size(); ++k)
+                for (std::size_t k = 0; k < a_compressed[thread_id].size(); ++k)
                 {
-                    fp_triangular_matrix_vector(transpose, alpha, a_compressed[k], x[k], beta, y[k], symmetric);
+                    fp_triangular_matrix_vector(transpose, alpha, a_compressed[thread_id][k], x[k_offset + k], beta, y[k_offset + k], symmetric);
                 }
             }
         }
@@ -301,10 +314,9 @@ void kernel(const real_t alpha, const real_t beta, const bool transpose,
             }
             else
             {
-                #pragma omp for
-                for (std::size_t k = 0; k < a.size(); ++k)
+                for (std::size_t k = 0; k < a_compressed[thread_id].size(); ++k)
                 {
-                    fp_triangular_matrix_vector(transpose, alpha, a_compressed[k], x[k], beta, y[k], symmetric);
+                    fp_triangular_matrix_vector(transpose, alpha, a_compressed[thread_id][k], x[k_offset + k], beta, y[k_offset + k], symmetric);
                 }
             }
         }
