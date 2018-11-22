@@ -661,15 +661,14 @@ namespace FP_NAMESPACE
             //!
             //! This constructor allows to bind an externally compressed matrix.
             //! The internal storage then is not used.
-            //! For 'fp_type' not being an integer (this would be the case if BE=11 and BM=52 or BE=8 and BM=23)
-            //! 'TT' might be equal to 'T' and we cannot conclude that 'data' points to a compressed matrix.
+            //! For 'TT' being equal to 'T' and we cannot conclude that 'data' points to a compressed matrix.
             //! We thus have to use an additional argument to to control the internal storage usage and data compression.
             //! 
             //! \param data pointer to either the compressed or uncompressed input matrix
             //! \param extent matrix dimensions
             //! \param bs block size
             //! \param is_compressed (optional) 'data' points to a compressed matrix or not
-            template <typename TT, typename X = typename std::enable_if<!std::is_integral<TT>::value>::type>
+            template <typename TT, typename X = typename std::enable_if<std::is_same<T, TT>::value>::type>
             matrix(const TT* data, const std::array<std::size_t, 2>& extent, const std::size_t bs = bs_default, const bool is_compressed = true)
                 :
                 // if 'data' points to a compressed matrix set 'ld_data' to zero to avoid using the internal storage,
@@ -694,13 +693,13 @@ namespace FP_NAMESPACE
             //!
             //! This constructor allows to bind an externally compressed matrix.
             //! The internal storage then is not used.
-            //! This constructor complements the above one for 'fp_type' being an integer.
+            //! This constructor complements the above one for 'T' not being equal to 'TT'.
             //! In this case 'data' is assumed to point to an externally compressed matrix.
             //! 
             //! \param data pointer to the compressed input matrix
             //! \param extent matrix dimensions
             //! \param bs block size
-            template <typename TT, typename X = typename std::enable_if<std::is_integral<TT>::value>::type>
+            template <typename TT, typename X = typename std::enable_if<!std::is_same<T, TT>::value>::type>
             matrix(const TT* data, const std::array<std::size_t, 2>& extent, const std::size_t bs = bs_default)
                 :
                 // since 'data' points to a compressed matrix set 'ld_data' to zero to avoid using the internal storage
@@ -1069,15 +1068,14 @@ namespace FP_NAMESPACE
             //!
             //! This constructor allows to bind an externally compressed matrix.
             //! The internal storage then is not used.
-            //! For 'fp_type' not being an integer (this would be the case if BE=11 and BM=52 or BE=8 and BM=23)
-            //! 'TT' might be equal to 'T' and we cannot conclude that 'data' points to a compressed matrix.
+            //! For 'TT' being equal to 'T' and we cannot conclude that 'data' points to a compressed matrix.
             //! We thus have to use an additional argument to to control the internal storage usage and data compression.
             //! 
             //! \param data pointer to either the compressed or uncompressed input matrix
             //! \param extent matrix dimensions
             //! \param bs block size
             //! \param is_compressed (optional) 'data' points to a compressed matrix or not
-            template <typename TT, std::size_t D, typename X = typename std::enable_if<!std::is_integral<TT>::value>::type>
+            template <typename TT, std::size_t D, typename X = typename std::enable_if<std::is_same<T, TT>::value>::type>
             triangular_matrix(const TT* data, const std::array<std::size_t, D>& extent, const std::size_t bs = bs_default, const bool is_compressed = true)
                 :
                 triangular_matrix(data, (is_compressed ? 0 : extent[0]), extent, bs)
@@ -1100,13 +1098,13 @@ namespace FP_NAMESPACE
             //!
             //! This constructor allows to bind an externally compressed matrix.
             //! The internal storage then is not used.
-            //! This constructor complements the above one for 'fp_type' being an integer.
+            //! This constructor complements the above one for 'T' not being equal to 'TT'.
             //! In this case 'data' is assumed to point to an externally compressed matrix.
             //! 
             //! \param data pointer to the compressed input matrix
             //! \param extent matrix dimensions
             //! \param bs block size
-            template <typename TT, std::size_t D, typename X = typename std::enable_if<std::is_integral<TT>::value>::type>
+            template <typename TT, std::size_t D, typename X = typename std::enable_if<!std::is_same<T, TT>::value>::type>
             triangular_matrix(const TT* data, const std::array<std::size_t, D>& extent, const std::size_t bs = bs_default)
                 :
                 triangular_matrix(reinterpret_cast<const T*>(data), 0, extent, bs)
