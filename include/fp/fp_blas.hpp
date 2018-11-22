@@ -335,17 +335,17 @@ namespace FP_NAMESPACE
             //! \param bs block size
             //! \param partition the matrix partitioning
             template <matrix_type MT>
-            static void decompress(const fp_type* compressed_data, T* data, const std::size_t ld_data, const std::array<std::size_t, 2>& extent, const std::size_t bs, const partition_t& partition)
+            static ptrdiff_t decompress(const fp_type* compressed_data, T* data, const std::size_t ld_data, const std::array<std::size_t, 2>& extent, const std::size_t bs, const partition_t& partition)
             {
                 if (data == nullptr || compressed_data == nullptr)
                 {
                     std::cerr << "error in matrix_base<..," << BE << "," << BM << ">::decompress: any of the pointers is a nullptr" << std::endl;
-                    return;
+                    return 0;
                 }
 
                 const std::size_t m = extent[0];
                 const std::size_t n = extent[1];
-                if (m == 0 || n == 0 || bs == 0) return;
+                if (m == 0 || n == 0 || bs == 0) return 0;
                 
                 constexpr bool upper_rowmajor = (MT == matrix_type::upper_triangular) && (L == matrix_layout::rowmajor);
                 constexpr bool lower_colmajor = (MT == matrix_type::lower_triangular) && (L == matrix_layout::colmajor);
@@ -418,6 +418,21 @@ namespace FP_NAMESPACE
                         }
                     }
                 }
+
+                // correct the last block's element count
+                if (partition.num_elements_d != 0)
+                {
+                    if (MT == matrix_type::general)
+                    {
+                        ptr = ptr - (partition.num_elements_b != 0 ? partition.num_elements_b : partition.num_elements_c) + partition.num_elements_d;
+                    }
+                    else
+                    {
+                        ptr = ptr - partition.num_elements_a + partition.num_elements_d;
+                    }
+                }
+
+                return (ptr - compressed_data);
             }
 
             // some constants
@@ -739,37 +754,37 @@ namespace FP_NAMESPACE
             //! \param ld_data leading dimension of the memory allocation that is behind the output matrix
             //! \param extent matrix dimensions
             //! \param bs (optional) block size
-            static void decompress(const fp_type* compressed_data, T* data, const std::size_t ld_data, const std::array<std::size_t, 2>& extent, const std::size_t bs = bs_default)
+            static ptrdiff_t decompress(const fp_type* compressed_data, T* data, const std::size_t ld_data, const std::array<std::size_t, 2>& extent, const std::size_t bs = bs_default)
             {
                 if (data == nullptr || compressed_data == nullptr)
                 {
                     std::cerr << "error in matrix<..," << BE << "," << BM << ">::decompress: any of the pointers is a nullptr" << std::endl;
-                    return;
+                    return 0;
                 }
 
                 const std::size_t m = extent[0];
                 const std::size_t n = extent[1];
-                if (m == 0 || n == 0 || bs == 0) return;
+                if (m == 0 || n == 0 || bs == 0) return 0;
                 
                 // create partitioning and use the base class decompression method
                 const partition_t partition = base_class::template make_partition<matrix_type::general>(extent, bs);
-                base_class::template decompress<matrix_type::general>(compressed_data, data, ld_data, extent, bs, partition);
+                return base_class::template decompress<matrix_type::general>(compressed_data, data, ld_data, extent, bs, partition);
             }
 
             //! \brief Decompress this matrix
             //!
             //! \param data pointer to the (decompressed) output matrix
             //! \param ld_data (optional) leading dimension of the memory allocation that is behind the output matrix
-            void decompress(T* data, const std::size_t ld_data = 0)
+            ptrdiff_t decompress(T* data, const std::size_t ld_data = 0)
             {
                 if (data == nullptr)
                 {
                     std::cerr << "error in matrix<..," << BE << "," << BM << ">::decompress: pointers is a nullptr" << std::endl;
-                    return;
+                    return 0;
                 }
 
                 // if 'ld_data' is not speficied, deduce it from the matrix dimensions
-                base_class::template decompress<matrix_type::general>(compressed_data, data, (ld_data == 0 ? (L == matrix_layout::rowmajor ? n : m) : ld_data), {m, n}, bs, partition);
+                return base_class::template decompress<matrix_type::general>(compressed_data, data, (ld_data == 0 ? (L == matrix_layout::rowmajor ? n : m) : ld_data), {m, n}, bs, partition);
             }
 
             //! \brief Determine the number of elements needed to store the compressed matrix
@@ -1143,20 +1158,20 @@ namespace FP_NAMESPACE
             //! \param ld_data leading dimension of the memory allocation that is behind the output matrix
             //! \param extent matrix dimensions
             //! \param bs (optional) block size
-            static void decompress(const fp_type* compressed_data, T* data, const std::size_t ld_data, const std::array<std::size_t, 2>& extent, const std::size_t bs = bs_default)
+            static ptrdiff_t decompress(const fp_type* compressed_data, T* data, const std::size_t ld_data, const std::array<std::size_t, 2>& extent, const std::size_t bs = bs_default)
             {
                 if (data == nullptr || compressed_data == nullptr)
                 {
                     std::cerr << "error in triangular_matrix<..," << BE << "," << BM << ">::decompress: any of the pointers is a nullptr" << std::endl;
-                    return;
+                    return 0;
                 }
 
                 const std::size_t m = extent[0];
                 const std::size_t n = extent[1];
-                if (m == 0 || n == 0 || bs == 0) return;
+                if (m == 0 || n == 0 || bs == 0) return 0;
                 
                 const partition_t partition = base_class::template make_partition<MT>(extent, bs);
-                base_class::template decompress<MT>(compressed_data, data, ld_data, extent, bs, partition);
+                return base_class::template decompress<MT>(compressed_data, data, ld_data, extent, bs, partition);
             }
 
             static ptrdiff_t compress(const T* data, const std::size_t ld_data, fp_type* compressed_data, const std::array<std::size_t, 1>& extent, const std::size_t bs = bs_default)
@@ -1164,25 +1179,25 @@ namespace FP_NAMESPACE
                 return compress(data, ld_data, compressed_data, {extent[0], extent[0]}, bs);
             }
 
-            static void decompress(const fp_type* compressed_data, T* data, const std::size_t ld_data, const std::array<std::size_t, 1>& extent, const std::size_t bs = bs_default)
+            static ptrdiff_t decompress(const fp_type* compressed_data, T* data, const std::size_t ld_data, const std::array<std::size_t, 1>& extent, const std::size_t bs = bs_default)
             {
-                decompress(compressed_data, data, ld_data, {extent[0], extent[0]}, bs);
+                return decompress(compressed_data, data, ld_data, {extent[0], extent[0]}, bs);
             }
 
             //! \brief Decompress this matrix
             //!
             //! \param data pointer to the (decompressed) output matrix
             //! \param ld_data (optional) leading dimension of the memory allocation that is behind the output matrix
-            void decompress(T* data, const std::size_t ld_data = 0)
+            ptrdiff_t decompress(T* data, const std::size_t ld_data = 0)
             {
                 if (data == nullptr)
                 {
                     std::cerr << "error in triangular_matrix<..," << BE << "," << BM << ">::decompress: pointers is a nullptr" << std::endl;
-                    return;
+                    return 0;
                 }
 
                 // if 'ld_data' is not speficied, deduce it from the matrix dimensions
-                base_class::template decompress<MT>(compressed_data, data, (ld_data == 0 ? n : ld_data), {n, n}, bs, partition);
+                return base_class::template decompress<MT>(compressed_data, data, (ld_data == 0 ? n : ld_data), {n, n}, bs, partition);
             }
 
             //! \brief Determine the number of elements needed to store the compressed matrix
