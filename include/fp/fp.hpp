@@ -927,7 +927,7 @@ namespace FP_NAMESPACE
             const float* fptr_in = reinterpret_cast<const float*>(in);
             const float a = fptr_in[0];
             const float b = fptr_in[1];
-            
+
         #if defined(__AVX2__) || defined(__AVX512F__)
             constexpr bool use_simd_intrinsics = std::is_same<T, std::uint8_t>::value;
             if (use_simd_intrinsics)
@@ -941,7 +941,7 @@ namespace FP_NAMESPACE
 
                 for (std::size_t i = 0; i < n; ++i)
                 {
-                    out[i] = ptr_in[i] * b + a;
+                    out[i] = ptr_in[i] * b + (b * 0.5 + a);
                 }
             }
         }
