@@ -26,18 +26,18 @@ namespace FP_NAMESPACE
 
         // index computation for column and row major format
         template <matrix_layout L>
-        static std::size_t idx(const std::size_t j, const std::size_t i, const std::size_t m, const std::size_t n);
+        static std::size_t idx(const std::size_t j, const std::size_t i, const std::size_t ldn);
 
         template <>
-        inline std::size_t idx<matrix_layout::rowmajor>(const std::size_t j, const std::size_t i, const std::size_t m, const std::size_t n)
+        inline std::size_t idx<matrix_layout::rowmajor>(const std::size_t j, const std::size_t i, const std::size_t ldn)
         {
-            return (j * n + i);
+            return (j * ldn + i);
         }
 
         template <>
-        inline std::size_t idx<matrix_layout::colmajor>(const std::size_t j, const std::size_t i, const std::size_t m, const std::size_t n)
+        inline std::size_t idx<matrix_layout::colmajor>(const std::size_t j, const std::size_t i, const std::size_t ldn)
         {
-            return (i * m + j);
+            return (i * ldn + j);
         }
     }
 }
@@ -273,11 +273,12 @@ namespace FP_NAMESPACE
                         else
                         {
                             // non-diagonal blocks: full block
+                            const std::size_t ldn = (L == matrix_layout::rowmajor ? nn : mm);
                             for (std::size_t jj = 0; jj < mm; ++jj)
                             {
                                 for (std::size_t ii = 0; ii < nn; ++ii)
                                 {
-                                    buffer[idx<L>(jj, ii, mm, nn)] = data[idx<L>(j + jj, i + ii, ld_data, ld_data)];
+                                    buffer[idx<L>(jj, ii, ldn)] = data[idx<L>(j + jj, i + ii, ld_data)];
                                 }
                             }
                         }
@@ -367,7 +368,7 @@ namespace FP_NAMESPACE
                     {
                         const std::size_t mm = std::min(m - j, bs);
                         const std::size_t nn = std::min(n - i, bs);
-
+                    
                         // decompress the 'buffer'
                         if (MT == matrix_type::general)
                         {
@@ -408,11 +409,12 @@ namespace FP_NAMESPACE
                         else
                         {
                             // non-diagonal blocks
+                            const std::size_t ldn = (L == matrix_layout::rowmajor ? nn : mm);
                             for (std::size_t jj = 0; jj < mm; ++jj)
                             {
                                 for (std::size_t ii = 0; ii < nn; ++ii)
                                 {
-                                    data[idx<L>(j + jj, i + ii, ld_data, ld_data)] = buffer[idx<L>(jj, ii, mm, nn)];
+                                    data[idx<L>(j + jj, i + ii, ld_data)] = buffer[idx<L>(jj, ii, ldn)];
                                 }
                             }
                         }
