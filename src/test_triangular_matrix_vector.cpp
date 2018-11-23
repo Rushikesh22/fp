@@ -15,7 +15,6 @@
 #include <sys/sysinfo.h>
 #endif
 
-constexpr std::size_t m_default = 256;
 constexpr std::size_t n_default = 256;
 constexpr std::size_t num_matrices_default = 100;
 constexpr std::size_t bs_default = 32;
@@ -52,7 +51,7 @@ int main(int argc, char** argv)
     std::cout << "num matrices: " << num_matrices << std::endl;
     std::cout << "block size: " << bs << std::endl;
 
-    #if defined(THREAD_PINNING)
+#if defined(THREAD_PINNING)
     #pragma omp parallel
     {
         const std::size_t thread_id = omp_get_thread_num();
@@ -63,7 +62,7 @@ int main(int argc, char** argv)
         CPU_SET(thread_id % num_cpus, &cpu_mask);
         sched_setaffinity(0, sizeof(cpu_mask), &cpu_mask);
     }
-    #endif
+#endif
 
     // create matrices and vectors
     const std::size_t max_threads = omp_get_max_threads();
@@ -115,7 +114,7 @@ int main(int argc, char** argv)
 
                     for (std::size_t i = i_start; i < i_end; ++i)
                     {
-                        a[k][fw::blas::idx<L>(j, i, n, n)] = a[k][fw::blas::idx<L>(i, j, n, n)];
+                        a[k][fw::blas::idx<L>(j, i, n)] = a[k][fw::blas::idx<L>(i, j, n)];
                     }
                 }
             }
@@ -140,13 +139,13 @@ int main(int argc, char** argv)
         }
     }
 
-    #if defined(BENCHMARK)
+#if defined(BENCHMARK)
     // parameters for the matrix vector multiplication
     const real_t alpha = static_cast<real_t>(1.0);
     const real_t beta = static_cast<real_t>(0.0);
     const bool transpose = transpose_benchmark;
     kernel(alpha, beta, transpose, n, a, a_compressed, x, y_ref, y, symmetric, use_blas);
-    #else
+#else
     {
         const real_t alpha = static_cast<real_t>(1.0);
         const real_t beta = static_cast<real_t>(0.0);
@@ -197,7 +196,7 @@ int main(int argc, char** argv)
             kernel(alpha, beta, transpose, n, a, a_compressed, x, y_ref, y, symmetric, use_blas);
         }    
     }
-    #endif
+#endif
     
     return 0;
 }
@@ -330,11 +329,11 @@ void kernel(const real_t alpha, const real_t beta, const bool transpose,
         }
     }
 
-    #if defined(BENCHMARK)
+#if defined(BENCHMARK)
     // output some metrics
     const double gflops = measurement * a.size() * (symmetric ? 2 : 1) * (n * n) / (time_stop - time_start) * 1.0E-9;
     std::cout << "gflops: " << gflops << std::endl;
-    #else
+#else
     // correctness
     double dev = 0.0;
     real_t v_1 = y_ref[0][0];
@@ -353,5 +352,5 @@ void kernel(const real_t alpha, const real_t beta, const bool transpose,
         }
     }
     std::cout << "deviation: " << dev << " (" << v_1 << " vs. " << v_2 << ")" << std::endl;
-    #endif
+#endif
 }

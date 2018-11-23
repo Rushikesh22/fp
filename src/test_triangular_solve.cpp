@@ -15,7 +15,6 @@
 #include <sys/sysinfo.h>
 #endif
 
-constexpr std::size_t m_default = 256;
 constexpr std::size_t n_default = 256;
 constexpr std::size_t num_matrices_default = 100;
 constexpr std::size_t bs_default = 32;
@@ -123,12 +122,12 @@ int main(int argc, char** argv)
         }
     }
 
-    #if defined(BENCHMARK)
+#if defined(BENCHMARK)
     // parameters for the matrix vector multiplication
     const real_t alpha = static_cast<real_t>(1.0);
     const bool transpose = transpose_benchmark;
     kernel(alpha, transpose, n, a, a_compressed, x_ref, x, y, use_blas);
-    #else
+#else
     {
         const real_t alpha = static_cast<real_t>(1.0);
         const bool transpose = false;
@@ -165,7 +164,7 @@ int main(int argc, char** argv)
             kernel(alpha, transpose, n, a, a_compressed, x_ref, x, y, use_blas);
         }
     }
-    #endif
+#endif
     
     return 0;
 }
@@ -297,11 +296,11 @@ void kernel(const real_t alpha, const bool transpose,
         }
     }
 
-    #if defined(BENCHMARK)
+#if defined(BENCHMARK)
     // output some metrics
     const double gflops = measurement * a.size() * n * n / (time_stop - time_start) * 1.0E-9;
     std::cout << "gflops: " << gflops << std::endl;
-    #else
+#else
     // correctness
     double dev = 0.0;
     real_t v_1 = x_ref[0][0];
@@ -320,5 +319,5 @@ void kernel(const real_t alpha, const bool transpose,
         }
     }
     std::cout << "deviation: " << dev << " (" << v_1 << " vs. " << v_2 << ")" << std::endl;
-    #endif
+#endif
 }
