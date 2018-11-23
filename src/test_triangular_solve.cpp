@@ -78,29 +78,28 @@ int main(int argc, char** argv)
             a[k].reserve(n * n);
             for (std::size_t j = 0; j < n; ++j)
             {
-                if ((upper_matrix) && (L == fw::blas::matrix_layout::rowmajor) ||
-                    (!upper_matrix) && (L == fw::blas::matrix_layout::colmajor))
+                if (upper_matrix)
                 {
                     for (std::size_t i = 0; i < j; ++i)
                     {
-                        a[k][j * n + i] = 0.0;
+                        a[k][fw::blas::idx<L>(j, i, n)] = 0.0;
                     }
                     for (std::size_t i = j; i < n; ++i)
                     {
-                        a[k][j * n + i] = 0.9 + 0.2 * rand_r(&seed) / RAND_MAX;
+                        a[k][fw::blas::idx<L>(j, i, n)] = 0.9 + 0.2 * rand_r(&seed) / RAND_MAX;
                     }
                 }
                 else
                 {
                     for (std::size_t i = 0; i <= j; ++i)
                     {
-                        a[k][j * n + i] = 0.9 + 0.2 * rand_r(&seed) / RAND_MAX;
+                        a[k][fw::blas::idx<L>(j, i, n)] = 0.9 + 0.2 * rand_r(&seed) / RAND_MAX;
                     }
                     for (std::size_t i = (j + 1); i < n; ++i)
                     {
-                        a[k][j * n + i] = 0.0;
+                        a[k][fw::blas::idx<L>(j, i, n)] = 0.0;
                     }
-                }
+                }    
             }
 
             x_ref[k].reserve(n);
