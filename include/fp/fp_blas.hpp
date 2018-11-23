@@ -320,7 +320,13 @@ namespace FP_NAMESPACE
                     }
                 }
 
-                return (ptr - compressed_data);
+                const ptrdiff_t result = ptr - compressed_data;
+                if (result != partition.num_elements)
+                {
+                    std::cerr << "error in matrix_base<..," << BE << "," << BM << ">::compress: out of bounds" << std::endl;
+                }
+
+                return result;
             }
 
             //! \brief Matrix decompression
@@ -356,7 +362,7 @@ namespace FP_NAMESPACE
                 // pointer to the first block
                 const fp_type* ptr = compressed_data;
 
-                for (std::size_t j = 0; j < n; j += bs)
+                for (std::size_t j = 0; j < m; j += bs)
                 {
                     const std::size_t i_start_triangular = (MT == matrix_type::upper_triangular ? j : 0);
                     const std::size_t i_end_triangular = (MT == matrix_type::upper_triangular ? n : (j + 1));
@@ -434,7 +440,13 @@ namespace FP_NAMESPACE
                     }
                 }
 
-                return (ptr - compressed_data);
+                const ptrdiff_t result = ptr - compressed_data;
+                if (result != partition.num_elements)
+                {
+                    std::cerr << "error in matrix_base<..," << BE << "," << BM << ">::decompress: out of bounds" << std::endl;
+                }
+
+                return result;
             }
 
             // some constants
@@ -776,7 +788,7 @@ namespace FP_NAMESPACE
             //!
             //! \param data pointer to the (decompressed) output matrix
             //! \param ld_data (optional) leading dimension of the memory allocation that is behind the output matrix
-            ptrdiff_t decompress(T* data, const std::size_t ld_data = 0)
+            ptrdiff_t decompress(T* data, const std::size_t ld_data = 0) const
             {
                 if (data == nullptr)
                 {
@@ -1188,7 +1200,7 @@ namespace FP_NAMESPACE
             //!
             //! \param data pointer to the (decompressed) output matrix
             //! \param ld_data (optional) leading dimension of the memory allocation that is behind the output matrix
-            ptrdiff_t decompress(T* data, const std::size_t ld_data = 0)
+            ptrdiff_t decompress(T* data, const std::size_t ld_data = 0) const
             {
                 if (data == nullptr)
                 {
