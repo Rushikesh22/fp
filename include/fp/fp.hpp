@@ -1029,6 +1029,77 @@ namespace FP_NAMESPACE
             decode_fixed_point_kernel(in, out, n);
         }
     };
+
+    //! \brief Definition of floating / fixed point data type
+    //! 
+    //! \tparam T IEEE754 double or single type
+    //! \tparam BM bits mantissa
+    //! \tparam BE bits exponent
+    template <typename T, std::int32_t BM = ieee754_fp<T>::bm, std::uint32_t BE = ieee754_fp<T>::be>
+    struct fp_type
+    {
+        static_assert(std::is_same<T, double>::value || std::is_same<T, float>::value, "error: only 'double' or 'float' are allowed");
+
+        using type = T;
+        static constexpr std::uint32_t bm = BM;
+        static constexpr std::uint32_t be = BE;
+    };
+
+    namespace internal
+    {
+        //! \brief Test for 'T' being fundamental (default) or of type 'fp_type'
+        //!
+        //! \tparam T data type
+        template <class T>
+        struct is_fp_type
+        {
+            static constexpr bool value = false;
+        };
+
+        template <class T>
+        struct is_fp_type<fp_type<T>>
+        {
+            // standard 'double' and 'float' type
+            static constexpr bool value = true;
+        };
+
+        template <class T>
+        struct is_fp_type<fp_type<T, 7, 8>>
+        {
+            // truncated float type 'bfloat16'
+            static constexpr bool value = true;
+        };
+
+        template <class T>
+        struct is_fp_type<fp_type<T, 16, 0>>
+        {
+            // fixed precision 16 bit
+            static constexpr bool value = true;
+        };
+
+        template <class T>
+        struct is_fp_type<fp_type<T, 8, 0>>
+        {
+            // fixed precision 8 bit
+            static constexpr bool value = true;
+        };
+
+        template <class T, class Enabled=void>
+        struct extract
+        {
+            using type = T;
+            static constexpr std::uint32_t bm = ieee754_fp<T>::bm;
+            static constexpr std::uint32_t be = ieee754_fp<T>::be;
+        };
+
+        template <class T>
+        struct extract<T, class std::enable_if<is_fp_type<T>::value>::type>
+        {
+            using type = typename T::type;
+            static constexpr std::uint32_t bm = T::bm;
+            static constexpr std::uint32_t be = T::be;
+        };
+    }
 }
 
 #endif
