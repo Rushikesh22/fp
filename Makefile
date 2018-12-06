@@ -1,9 +1,11 @@
 CXX = g++
 LD = g++
 
-INC = -I./include -I./include/blas -I./src/include -I$(HOME)/opt/gnu-7.3.0/boost/include -I/usr/include/mkl
+MKLINC=/usr/include/mkl
+MKLLIB=/usr/lib/x86_64-linux-gnu
+INC = -I./include -I./include/blas -I./src/include -I$(HOME)/opt/gnu-7.3.0/boost/include -I$(MKLINC)
 CXXFLAGS = -O3 -std=c++14 -mavx2 -m64 -mfma -fopenmp -fopenmp-simd -ftree-vectorize -ffast-math -fopt-info-vec-optimized -fpermissive $(INC)
-LDFLAGS = -O2 -L/usr/lib/x86_64-linux-gnu -Wl,--no-as-needed -lmkl_intel_lp64 -lmkl_sequential -lmkl_core -liomp5 -lpthread -lm -ldl
+LDFLAGS = -O2 -L$(MKLLIB) -Wl,--no-as-needed -lmkl_intel_lp64 -lmkl_sequential -lmkl_core -liomp5 -lpthread -lm -ldl
 
 #CXXFLAGS += -DBENCHMARK
 CXXFLAGS += -D_BE=11 -D_BM=52
@@ -20,9 +22,9 @@ CXXFLAGS += -DFP_INTEGER_GEMV
 #all: test_fp
 #all: test_leading_dimension
 #all: test_general_matrix_vector
-#all: test_triangular_matrix_vector
+all: test_triangular_matrix_vector
 #all: test_triangular_solve
-all: test_compress_decompress
+#all: test_compress_decompress
 #all: test_general_matrix_vector test_triangular_matrix_vector test_triangular_solve
 
 ###

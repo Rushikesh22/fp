@@ -24,7 +24,7 @@ static constexpr std::uint32_t BE = 0;
 #if defined(_BM)
 static constexpr std::uint32_t BM = _BM;
 #else
-static constexpr std::uint32_t BM = 15;
+static constexpr std::uint32_t BM = 16;
 #endif
 
 #if defined(_ROWMAJOR)
