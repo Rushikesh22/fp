@@ -1050,41 +1050,41 @@ namespace FP_NAMESPACE
         //! \brief Test for 'T' being fundamental (default) or of type 'fp_type'
         //!
         //! \tparam T data type
-        template <class T>
+        template <typename T>
         struct is_fp_type
         {
             static constexpr bool value = false;
         };
 
-        template <class T>
+        template <typename T>
         struct is_fp_type<fp_type<T>>
         {
             // standard 'double' and 'float' type
             static constexpr bool value = true;
         };
 
-        template <class T>
+        template <typename T>
         struct is_fp_type<fp_type<T, 7, 8>>
         {
             // truncated float type 'bfloat16'
             static constexpr bool value = true;
         };
 
-        template <class T>
+        template <typename T>
         struct is_fp_type<fp_type<T, 16, 0>>
         {
             // fixed precision 16 bit
             static constexpr bool value = true;
         };
 
-        template <class T>
+        template <typename T>
         struct is_fp_type<fp_type<T, 8, 0>>
         {
             // fixed precision 8 bit
             static constexpr bool value = true;
         };
 
-        template <class T, class Enabled=void>
+        template <typename T, typename Enabled=void>
         struct extract
         {
             using type = T;
@@ -1092,8 +1092,8 @@ namespace FP_NAMESPACE
             static constexpr std::uint32_t be = ieee754_fp<T>::be;
         };
 
-        template <class T>
-        struct extract<T, class std::enable_if<is_fp_type<T>::value>::type>
+        template <typename T>
+        struct extract<T, typename std::enable_if<is_fp_type<T>::value>::type>
         {
             using type = typename T::type;
             static constexpr std::uint32_t bm = T::bm;
