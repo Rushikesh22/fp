@@ -13,6 +13,8 @@
 // fundamental real data type: 'float' or 'double'
 //using real_t = float;
 using real_t = double;
+using vec_t = float;
+using mat_t = float;
 
 // number of bits to be used for exponent and mantissa
 #if defined(_BE)
@@ -41,8 +43,8 @@ constexpr CBLAS_LAYOUT layout = (L == fw::blas::matrix_layout::rowmajor ? CblasR
 using fp_matrix = typename fw::blas::matrix<real_t, L, BM, BE>;
 
 // prototypes
-void blas_matrix_vector(const bool transpose, const std::size_t m, const std::size_t n, const real_t alpha, const std::vector<real_t>& a, const std::vector<real_t>& x, const real_t beta, std::vector<real_t>& y);
+void blas_matrix_vector(const bool transpose, const std::size_t m, const std::size_t n, const mat_t alpha, const std::vector<real_t>& a, const std::vector<vec_t>& x, const vec_t beta, std::vector<vec_t>& y);
 
-void fp_matrix_vector(const bool transpose, const real_t alpha, const fp_matrix& a, const std::vector<real_t>& x, const real_t beta, std::vector<real_t>& y);
+void fp_matrix_vector(const bool transpose, const mat_t alpha, const fp_matrix& a, const std::vector<vec_t>& x, const vec_t beta, std::vector<vec_t>& y);
 
 #endif

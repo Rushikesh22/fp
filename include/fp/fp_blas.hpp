@@ -449,40 +449,50 @@ namespace FP_NAMESPACE
                 return result;
             }
 
-            // some constants
-            static constexpr T f_0 = static_cast<T>(0.0);
-            static constexpr T f_1 = static_cast<T>(1.0);
-
             //! \brief Function body for different blas2 kernel implementations
             //!
             //! Some special cases are handled and input and output vectors are set up.
             //! The BLAS2 kernel is provided through a Lambda and operates on the input and output vectors.
             //!
             //! \tparam F Lambda
+            //! \tparam Tmat data type to be used for the (intermediate) matrix representation
+            //! \tparam Tvec data type of the input and output vectors
             //! \param kernel the BLAS2 operation (as a Lambda)
             //! \param transpose matrix transposition
             //! \param alpha scaling factor for the matrix
             //! \param x pointer to the input vector
             //! \param beta scaling factor for the output vector
             //! \param y pointer to the output vector
-            template <typename F>
-            void blas2_frame(const F& kernel, const bool transpose, const T alpha, const T* x, const T beta, T* y) const
+            template <typename F, typename Tmat = T, typename Tvec = T>
+            void blas2_frame(const F& kernel, const bool transpose, const Tmat alpha, const Tvec* x, const Tvec beta, Tvec* y) const
             {
+                static_assert(std::is_floating_point<Tmat>::value, "error: only floating point numbers are allowed");
+                static_assert(std::is_floating_point<Tvec>::value, "error: only floating point numbers are allowed");
+
                 if (n == 0 || m == 0) return;
-                
+
+                // some constants
+                static constexpr Tmat fmat_0 = static_cast<Tmat>(0.0);
+                static constexpr Tmat fmat_1 = static_cast<Tmat>(1.0);
+                static constexpr Tvec fvec_0 = static_cast<Tvec>(0.0);
+                static constexpr Tvec fvec_1 = static_cast<Tvec>(1.0);
+
+                constexpr bool same_mat_vec_type = std::is_same<Tmat, Tvec>::value;
+
                 const std::size_t mn = (transpose ? n : m);
+                const std::size_t nm = (transpose ? m : n);
 
                 // handle some special cases
-                if (alpha == f_0)
+                if (alpha == fmat_0)
                 {
-                    if (beta == f_0)
+                    if (beta == fvec_0)
                     {
                         for (std::size_t j = 0; j < mn; ++j)
                         {
-                            y[j] = f_0;
+                            y[j] = fvec_0;
                         }
                     }
-                    else if (beta != f_1)
+                    else if (beta != fvec_1)
                     {
                         for (std::size_t j = 0; j < mn; ++j)
                         {
@@ -494,45 +504,59 @@ namespace FP_NAMESPACE
                 }
 
                 // allocate local memory: work directly on 'y' if 'x' and 'y' do not overlap
-                const bool use_buffer = (std::abs(y - x) >= std::max(m, n) ? false : true);
-                alignas(alignment) T buffer_y[use_buffer ? mn : 0];
-                T* ptr_y = nullptr;
+                const bool use_buffer = (same_mat_vec_type && std::abs(y - x) >= std::max(m, n) ? false : true);
+                alignas(alignment) Tmat buffer_x[use_buffer ? nm : 0];
+                alignas(alignment) Tmat buffer_y[use_buffer ? mn : 0];
+
+                // we use 'Tmat' for internal computation
+                const Tmat* ptr_x = nullptr;
+                Tmat* ptr_y = nullptr;
 
                 if (use_buffer)
                 {
-                    // accumulate on the buffer (do not write to the output directly)
+                    // do not read / write directly from / to the input / output
+                    ptr_x = &buffer_x[0];
                     ptr_y = &buffer_y[0];
 
-                    // zero the buffer
+                    // load the input: cast to 'Tmat' is implicit
+                    for (std::size_t i = 0; i < nm; ++i)
+                    {
+                        buffer_x[i] = x[i];
+                    }
+
+                    // zero the output buffer
                     for (std::size_t j = 0; j < mn; ++j)
                     {
-                        ptr_y[j] = f_0;
+                        buffer_y[j] = fvec_0;
                     }
                 }
                 else
                 {
-                    // write to the output directly
-                    ptr_y = y;
+                    // read / write directly from / to the input / output
+                    // note: the reinterpret cast is needed just for the compilation,
+                    //       but in all cases 'Tmat' is equal to 'Tvec'!
+                    ptr_x = reinterpret_cast<const Tmat*>(x);
+                    ptr_y = reinterpret_cast<Tmat*>(y);
 
                     // scale by 'beta'
-                    if (beta == f_0)
+                    if (beta == fvec_0)
                     {
                         for (std::size_t j = 0; j < mn; ++j)
                         {
-                            ptr_y[j] = f_0;
+                            y[j] = fvec_0;
                         }
                     }
-                    else if (beta != f_1)
+                    else if (beta != fvec_1)
                     {
                         for (std::size_t j = 0; j < mn; ++j)
                         {
-                            ptr_y[j] *= beta;
+                            y[j] *= beta;
                         }
                     }
                 }
 
                 // execute the kernel
-                kernel(transpose, alpha, x, ptr_y);
+                kernel(transpose, alpha, ptr_x, ptr_y);
 
                 // output has been written directly
                 if (!use_buffer)
@@ -541,14 +565,14 @@ namespace FP_NAMESPACE
                 }
 
                 // accumulate on 'y'
-                if (beta == f_0)
+                if (beta == fvec_0)
                 {
                     for (std::size_t j = 0; j < mn; ++j)
                     {
                         y[j] = buffer_y[j];
                     }
                 }
-                else if (beta == f_1)
+                else if (beta == fvec_1)
                 {
                     for (std::size_t j = 0; j < mn; ++j)
                     {
@@ -569,17 +593,26 @@ namespace FP_NAMESPACE
 
         public:
 
-            virtual std::size_t memory_footprint_elements() const
+            std::size_t memory_footprint_elements() const
             {
                 return partition.num_elements;
             }
 
-            virtual std::size_t memory_footprint_bytes() const
+            std::size_t memory_footprint_bytes() const
             {
                 return memory_footprint_elements() * sizeof(fp_type);
             }
 
-            virtual void matrix_vector(const bool transpose, const T alpha, const T* x, const T beta, T* y) const = 0;
+        #define MACRO_MATRIX_VECTOR(TYPE_MAT, TYPE_VEC)                                                                                                                     \
+            virtual void matrix_vector(const bool transpose, const TYPE_MAT alpha, const TYPE_VEC* x, const TYPE_VEC beta, TYPE_VEC* y) const = 0;                          \
+            virtual void matrix_vector(const bool transpose, const TYPE_MAT alpha, const std::vector<TYPE_VEC>& x, const TYPE_VEC beta, std::vector<TYPE_VEC>& y) const = 0 \
+
+            MACRO_MATRIX_VECTOR(double, double);
+            MACRO_MATRIX_VECTOR(double, float);
+            MACRO_MATRIX_VECTOR(float, double);
+            MACRO_MATRIX_VECTOR(float, float);
+
+        #undef MACRO_MATRIX_VECTOR
         };
 
         //! \brief General matrix
@@ -621,10 +654,6 @@ namespace FP_NAMESPACE
 
             using partition_t = typename base_class::partition_t;
             using base_class::partition;
-
-            // some constants
-            static constexpr T f_0 = static_cast<T>(0.0);
-            static constexpr T f_1 = static_cast<T>(1.0);
 
         public:
 
@@ -831,13 +860,19 @@ namespace FP_NAMESPACE
             //!
             //! Computes y = alpha * A(T) * x + beta * y.
             //!
+            //! \tparam Tmat data type to be used for the (intermediate) matrix representation
+            //! \tparam Tvec data type of the input and output vectors
             //! \param transpose matrix transposition
             //! \param alpha scaling factor for the matrix
             //! \param x pointer to the input vector
             //! \param beta scaling factor for the output vector
             //! \param y pointer to the output vector
-            virtual void matrix_vector(const bool transpose, const T alpha, const T* x, const T beta, T* y) const
+            template <typename Tmat = T, typename Tvec = T>
+            void matrix_vector_kernel(const bool transpose, const Tmat alpha, const Tvec* x, const Tvec beta, Tvec* y) const
             {
+                static_assert(std::is_floating_point<Tmat>::value, "error: only floating point numbers are allowed");
+                static_assert(std::is_floating_point<Tvec>::value, "error: only floating point numbers are allowed");
+
                 if (x == nullptr || y == nullptr)
                 {
                     std::cerr << "error in matrix<..," << BE << "," << BM << ">::matrix_vector: any of the pointers is a nullptr" << std::endl;
@@ -845,17 +880,22 @@ namespace FP_NAMESPACE
                 }
 
                 if (m == 0 || n == 0) return;
+
+                // some constants
+                static constexpr Tmat fmat_0 = static_cast<Tmat>(0.0);
+                static constexpr Tmat fmat_1 = static_cast<Tmat>(1.0);
                 
-                base_class::blas2_frame([&](const bool transpose, const T alpha, const T* x, T* y)
+                // the kernel uses 'Tmat' for internal data representation
+                base_class::blas2_frame([&](const bool transpose, const Tmat alpha, const Tmat* x, Tmat* y)
                 { 
                     // allocate local memory
-                    alignas(alignment) T buffer_a[bs * bs];
+                    alignas(alignment) Tmat buffer_a[bs * bs];
 
                 #if defined(FP_INTEGER_GEMV)
                     // the matrix vector multiplication happens directly on the
                     // integer (fixed point) representation of the matrix
-                    alignas(alignment) T tmp_y[bs];
-                    std::vector<T> rescale_p_2(0);
+                    alignas(alignment) Tmat tmp_y[bs];
+                    std::vector<Tmat> rescale_p_2(0);
                     if (internal::is_fixed_point_type<BM, BE>::value)
                     {
                         const std::size_t mn = (transpose ? m : n);
@@ -865,7 +905,7 @@ namespace FP_NAMESPACE
                         rescale_p_2.reserve(mn / bs + 1);
                         for (std::size_t i = 0, k = 0; i < mn; i += bs, ++k)
                         {
-                            rescale_p_2[k] = f_0;
+                            rescale_p_2[k] = fmat_0;
                             const std::size_t ii_max = std::min(mn - i, bs);
                             for (std::size_t ii = 0; ii < ii_max; ++ii)
                             {
@@ -890,8 +930,8 @@ namespace FP_NAMESPACE
                             {
                                 // extract scaling factors for the current block
                                 const float* fptr = reinterpret_cast<const float*>(&compressed_data[k]);
-                                const T rescale_p_3 = fptr[0];
-                                const T rescale_p_4 = fptr[1];
+                                const Tmat rescale_p_3 = fptr[0];
+                                const Tmat rescale_p_4 = fptr[1];
                                 const fp_type* tmp_a = reinterpret_cast<const fp_type*>(&fptr[2]);
 
                                 // move on to the next block
@@ -902,8 +942,8 @@ namespace FP_NAMESPACE
                                 const std::size_t dst_idx = (transpose ? i : j);
                                 blas::gemv(L, transpose, mm, nn, &tmp_a[0], &x[src_idx], &tmp_y[0]);
                                 // ..finalize gemv call: rescaling
-                                const T a = rescale_p_4;
-                                const T b = rescale_p_2[src_idx / bs] * rescale_p_3;
+                                const Tmat a = rescale_p_4;
+                                const Tmat b = rescale_p_2[src_idx / bs] * rescale_p_3;
                                 for (std::size_t jj = 0; jj < (transpose ? nn : mm); ++jj)
                                 {
                                     y[dst_idx + jj] += alpha * (tmp_y[jj] * a + b);
@@ -922,18 +962,31 @@ namespace FP_NAMESPACE
                                 const std::size_t lda = (L == matrix_layout::rowmajor ? nn : mm);
                                 const std::size_t src_idx = (transpose ? j : i);
                                 const std::size_t dst_idx = (transpose ? i : j);
-                                blas::gemv(cblas_layout, (transpose ? CblasTrans : CblasNoTrans), mm, nn, alpha, &buffer_a[0], lda, &x[src_idx], 1, f_1, &y[dst_idx], 1);
+                                blas::gemv(cblas_layout, (transpose ? CblasTrans : CblasNoTrans), mm, nn, alpha, &buffer_a[0], lda, &x[src_idx], 1, fmat_1, &y[dst_idx], 1);
                             }
                         }
                     }
                 }, transpose, alpha, x, beta, y);
             }
 
-            virtual void matrix_vector(const bool transpose, const T alpha, const std::vector<T>& x, const T beta, std::vector<T>& y) const
-            {
-                matrix_vector(transpose, alpha, &x[0], beta, &y[0]);
-            }
+        #define MACRO_MATRIX_VECTOR(TYPE_MAT, TYPE_VEC)                                                                                                                     \
+            virtual void matrix_vector(const bool transpose, const TYPE_MAT alpha, const TYPE_VEC* x, const TYPE_VEC beta, TYPE_VEC* y) const                               \
+            {                                                                                                                                                               \
+                matrix_vector_kernel(transpose, alpha, x, beta, y);                                                                                                         \
+            }                                                                                                                                                               \
+                                                                                                                                                                            \
+            virtual void matrix_vector(const bool transpose, const TYPE_MAT alpha, const std::vector<TYPE_VEC>& x, const TYPE_VEC beta, std::vector<TYPE_VEC>& y) const     \
+            {                                                                                                                                                               \
+                matrix_vector_kernel(transpose, alpha, &x[0], beta, &y[0]);                                                                                                 \
+            }                                                                                                                                                               \
 
+            MACRO_MATRIX_VECTOR(double, double);
+            MACRO_MATRIX_VECTOR(double, float);
+            MACRO_MATRIX_VECTOR(float, double);
+            MACRO_MATRIX_VECTOR(float, float);
+
+        #undef MACRO_MATRIX_VECTOR
+            
             void gemv(const bool transpose, const T alpha, const T* x, const T beta, T* y) const
             {
                 matrix_vector(transpose, alpha, x, beta, y);
@@ -1253,13 +1306,19 @@ namespace FP_NAMESPACE
             //!
             //! Computes y = alpha * A(T) * x + beta * y.
             //!
+            //! \tparam Tmat data type to be used for the (intermediate) matrix representation
+            //! \tparam Tvec data type of the input and output vectors
             //! \param transpose matrix transposition
             //! \param alpha scaling factor for the matrix
             //! \param x pointer to the input vector
             //! \param beta scaling factor for the output vector
             //! \param y pointer to the output vector
-            virtual void matrix_vector(const bool transpose, const T alpha, const T* x, const T beta, T* y) const
+            template <typename Tmat = T, typename Tvec = T>
+            void matrix_vector_kernel(const bool transpose, const Tmat alpha, const Tvec* x, const Tvec beta, Tvec* y) const
             {
+                static_assert(std::is_floating_point<Tmat>::value, "error: only floating point numbers are allowed");
+                static_assert(std::is_floating_point<Tvec>::value, "error: only floating point numbers are allowed");
+
                 if (x == nullptr || y == nullptr)
                 {
                     std::cerr << "error in triangular_matrix<..," << BE << "," << BM << ">::matrix_vector: any of the pointers is a nullptr" << std::endl;
@@ -1268,17 +1327,22 @@ namespace FP_NAMESPACE
 
                 if (n == 0) return;
                 
-                base_class::blas2_frame([&](const bool transpose, const T alpha, const T* x, T* y)
+                // some constants
+                static constexpr Tmat fmat_0 = static_cast<Tmat>(0.0);
+                static constexpr Tmat fmat_1 = static_cast<Tmat>(1.0);
+
+                // the kernel uses 'Tmat' for internal data representation
+                base_class::blas2_frame([&](const bool transpose, const Tmat alpha, const Tmat* x, Tmat* y)
                 { 
                     // allocate local memory
-                    alignas(alignment) T buffer_a[bs * bs];
-                    alignas(alignment) T buffer_y[bs];
+                    alignas(alignment) Tmat buffer_a[bs * bs];
+                    alignas(alignment) Tmat buffer_y[bs];
                     
                 #if defined(FP_INTEGER_GEMV)
                     // the matrix vector multiplication happens directly on the
                     // integer (fixed point) representation of the matrix
-                    alignas(alignment) T tmp_y[bs];
-                    std::vector<T> rescale_p_2(0);
+                    alignas(alignment) Tmat tmp_y[bs];
+                    std::vector<Tmat> rescale_p_2(0);
                     if (internal::is_fixed_point_type<BM, BE>::value)
                     {
                         // the transformation between the fixed and floating point representation
@@ -1287,7 +1351,7 @@ namespace FP_NAMESPACE
                         rescale_p_2.reserve(n / bs + 1);
                         for (std::size_t i = 0, k = 0; i < n; i += bs, ++k)
                         {
-                            rescale_p_2[k] = f_0;
+                            rescale_p_2[k] = fmat_0;
                             const std::size_t ii_max = std::min(n - i, bs);
                             for (std::size_t ii = 0; ii < ii_max; ++ii)
                             {
@@ -1337,8 +1401,8 @@ namespace FP_NAMESPACE
                                 if (internal::is_fixed_point_type<BM, BE>::value)
                                 {
                                     const float* fptr = reinterpret_cast<const float*>(&compressed_data[k]);
-                                    const T rescale_p_3 = fptr[0];
-                                    const T rescale_p_4 = fptr[1];
+                                    const Tmat rescale_p_3 = fptr[0];
+                                    const Tmat rescale_p_4 = fptr[1];
                                     const fp_type* tmp_a = reinterpret_cast<const fp_type*>(&fptr[2]);
 
                                     // move to the next block
@@ -1350,8 +1414,8 @@ namespace FP_NAMESPACE
                                     const std::size_t dst_idx = (transpose ? i : j);
                                     blas::gemv(L, transpose, mm, nn, &tmp_a[0], &x[src_idx], &tmp_y[0]);
                                     // ..finalize gemv call: rescaling
-                                    const T a = rescale_p_4;
-                                    const T b = rescale_p_2[src_idx / bs] * rescale_p_3;
+                                    const Tmat a = rescale_p_4;
+                                    const Tmat b = rescale_p_2[src_idx / bs] * rescale_p_3;
                                     for (std::size_t jj = 0; jj < (transpose ? nn : mm); ++jj)
                                     {
                                         y[dst_idx + jj] += alpha * (tmp_y[jj] * a + b);
@@ -1371,7 +1435,7 @@ namespace FP_NAMESPACE
                                     const std::size_t lda = (L == matrix_layout::rowmajor ? nn : mm);
                                     const std::size_t src_idx = (transpose ? j : i);
                                     const std::size_t dst_idx = (transpose ? i : j);
-                                    blas::gemv(cblas_layout, (transpose ? CblasTrans : CblasNoTrans), mm, nn, alpha, &buffer_a[0], lda, &x[src_idx], 1, f_1, &y[dst_idx], 1);
+                                    blas::gemv(cblas_layout, (transpose ? CblasTrans : CblasNoTrans), mm, nn, alpha, &buffer_a[0], lda, &x[src_idx], 1, fmat_1, &y[dst_idx], 1);
                                 }
                             }
                         }
@@ -1379,17 +1443,32 @@ namespace FP_NAMESPACE
                 }, transpose, alpha, x, beta, y);
             }
 
-            virtual void matrix_vector(const bool transpose, const T alpha, const std::vector<T>& x, const T beta, std::vector<T>& y) const
-            {
-                matrix_vector(transpose, alpha, &x[0], beta, &y[0]);
-            }
+        #define MACRO_MATRIX_VECTOR(TYPE_MAT, TYPE_VEC)                                                                                                                     \
+            virtual void matrix_vector(const bool transpose, const TYPE_MAT alpha, const TYPE_VEC* x, const TYPE_VEC beta, TYPE_VEC* y) const                               \
+            {                                                                                                                                                               \
+                matrix_vector_kernel(transpose, alpha, x, beta, y);                                                                                                         \
+            }                                                                                                                                                               \
+                                                                                                                                                                            \
+            virtual void matrix_vector(const bool transpose, const TYPE_MAT alpha, const std::vector<TYPE_VEC>& x, const TYPE_VEC beta, std::vector<TYPE_VEC>& y) const     \
+            {                                                                                                                                                               \
+                matrix_vector_kernel(transpose, alpha, &x[0], beta, &y[0]);                                                                                                 \
+            }                                                                                                                                                               \
 
-            void tpmv(const bool transpose, const T alpha, const T* x, const T beta, T* y) const
+            MACRO_MATRIX_VECTOR(double, double);
+            MACRO_MATRIX_VECTOR(double, float);
+            MACRO_MATRIX_VECTOR(float, double);
+            MACRO_MATRIX_VECTOR(float, float);
+
+        #undef MACRO_MATRIX_VECTOR
+
+            template <typename Tmat = T, typename Tvec = T>
+            void tpmv(const bool transpose, const Tmat alpha, const Tvec* x, const Tvec beta, Tvec* y) const
             {
                 matrix_vector(transpose, alpha, x, beta, y);
             }
 
-            void tpmv(const bool transpose, const T alpha, const std::vector<T>& x, const T beta, std::vector<T>& y) const
+            template <typename Tmat = T, typename Tvec = T>
+            void tpmv(const bool transpose, const Tmat alpha, const std::vector<Tvec>& x, const Tvec beta, std::vector<Tvec>& y) const
             {
                 matrix_vector(transpose, alpha, &x[0], beta, &y[0]);
             }

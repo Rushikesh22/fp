@@ -30,13 +30,13 @@ constexpr std::size_t warmup = 0;
 constexpr std::size_t measurement = 1;
 #endif
 
-void kernel(const real_t alpha, const real_t beta, const bool transpose,
+void kernel(const mat_t alpha, const vec_t beta, const bool transpose,
     const std::size_t m, const std::size_t n,
     const std::vector<std::vector<real_t>>& a,
     const std::vector<std::vector<fp_matrix>>& a_compressed,
-    const std::vector<std::vector<real_t>>& x,
-    std::vector<std::vector<real_t>>& y_ref,
-    std::vector<std::vector<real_t>>& y,
+    const std::vector<std::vector<vec_t>>& x,
+    std::vector<std::vector<vec_t>>& y_ref,
+    std::vector<std::vector<vec_t>>& y,
     const bool use_blas = false);
 
 int main(int argc, char** argv)
@@ -67,7 +67,8 @@ int main(int argc, char** argv)
 
     // create matrices and vectors
     const std::size_t max_threads = omp_get_max_threads();
-    std::vector<std::vector<real_t>> a(num_matrices), x(num_matrices), y_ref(num_matrices), y(num_matrices);
+    std::vector<std::vector<real_t>> a(num_matrices);
+    std::vector<std::vector<vec_t>> x(num_matrices), y(num_matrices), y_ref(num_matrices);
     std::vector<std::vector<fp_matrix>> a_compressed(max_threads);
     
     #pragma omp parallel
@@ -107,14 +108,14 @@ int main(int argc, char** argv)
     
 #if defined(BENCHMARK)
     // parameters for the matrix vector multiplication
-    const real_t alpha = static_cast<real_t>(1.0);
-    const real_t beta = static_cast<real_t>(0.0);
+    const mat_t alpha = static_cast<mat_t>(1.0);
+    const vec_t beta = static_cast<vec_t>(0.0);
     const bool transpose = transpose_benchmark;
     kernel(alpha, beta, transpose, m, n, a, a_compressed, x, y_ref, y, use_blas);
 #else
     {
-        const real_t alpha = static_cast<real_t>(1.0);
-        const real_t beta = static_cast<real_t>(0.0);
+        const mat_t alpha = static_cast<mat_t>(1.0);
+        const vec_t beta = static_cast<vec_t>(0.0);
         const bool transpose = false;
         kernel(alpha, beta, transpose, m, n, a, a_compressed, x, y_ref, y, use_blas);
         {
@@ -123,8 +124,8 @@ int main(int argc, char** argv)
         }
     }
     {
-        const real_t alpha = static_cast<real_t>(-1.1);
-        const real_t beta = static_cast<real_t>(0.0);
+        const mat_t alpha = static_cast<mat_t>(-1.1);
+        const vec_t beta = static_cast<vec_t>(0.0);
         const bool transpose = false;
         kernel(alpha, beta, transpose, m, n, a, a_compressed, x, y_ref, y, use_blas);
         {
@@ -133,8 +134,8 @@ int main(int argc, char** argv)
         }
     }
     {
-        const real_t alpha = static_cast<real_t>(0.0);
-        const real_t beta = static_cast<real_t>(-0.5);
+        const mat_t alpha = static_cast<mat_t>(0.0);
+        const vec_t beta = static_cast<vec_t>(-0.5);
         const bool transpose = false;
         kernel(alpha, beta, transpose, m, n, a, a_compressed, x, y_ref, y, use_blas);
         {
@@ -143,8 +144,8 @@ int main(int argc, char** argv)
         }
     }
     {
-        const real_t alpha = static_cast<real_t>(0.0);
-        const real_t beta = static_cast<real_t>(0.0);
+        const mat_t alpha = static_cast<mat_t>(0.0);
+        const vec_t beta = static_cast<vec_t>(0.0);
         const bool transpose = false;
         kernel(alpha, beta, transpose, m, n, a, a_compressed, x, y_ref, y, use_blas);
         {
@@ -153,8 +154,8 @@ int main(int argc, char** argv)
         }
     }
     {
-        const real_t alpha = static_cast<real_t>(2.3);
-        const real_t beta = static_cast<real_t>(0.0);
+        const mat_t alpha = static_cast<mat_t>(2.3);
+        const vec_t beta = static_cast<vec_t>(0.0);
         const bool transpose = false;
         kernel(alpha, beta, transpose, m, n, a, a_compressed, x, y_ref, y, use_blas);
         {
@@ -163,8 +164,8 @@ int main(int argc, char** argv)
         }
     }
     {
-        const real_t alpha = static_cast<real_t>(-0.34);
-        const real_t beta = static_cast<real_t>(1.1);
+        const mat_t alpha = static_cast<mat_t>(-0.34);
+        const vec_t beta = static_cast<vec_t>(1.1);
         const bool transpose = false;
         kernel(alpha, beta, transpose, m, n, a, a_compressed, x, y_ref, y, use_blas);
         {
@@ -177,13 +178,13 @@ int main(int argc, char** argv)
     return 0;
 }
 
-void kernel(const real_t alpha, const real_t beta, const bool transpose,
+void kernel(const mat_t alpha, const vec_t beta, const bool transpose,
     const std::size_t m, const std::size_t n,
     const std::vector<std::vector<real_t>>& a,
     const std::vector<std::vector<fp_matrix>>& a_compressed,
-    const std::vector<std::vector<real_t>>& x,
-    std::vector<std::vector<real_t>>& y_ref,
-    std::vector<std::vector<real_t>>& y,
+    const std::vector<std::vector<vec_t>>& x,
+    std::vector<std::vector<vec_t>>& y_ref,
+    std::vector<std::vector<vec_t>>& y,
     const bool use_blas)
 {
     // print some information
