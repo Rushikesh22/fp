@@ -1037,10 +1037,6 @@ namespace FP_NAMESPACE
 
             using partition_t = typename base_class::partition_t;
             using base_class::partition;
-            
-            // some constants
-            static constexpr T f_0 = static_cast<T>(0.0);
-            static constexpr T f_1 = static_cast<T>(1.0);
 
             //! \brief Block offset computation
             //!
@@ -1477,12 +1473,18 @@ namespace FP_NAMESPACE
             //!
             //! Computes y = alpha * A(T) * x + beta * y.
             //!
+            //! \tparam Tmat data type to be used for the (intermediate) matrix representation
+            //! \tparam Tvec data type of the input and output vectors
             //! \param alpha scaling factor for the matrix
             //! \param x pointer to the input vector
             //! \param beta scaling factor for the output vector
             //! \param y pointer to the output vector
-            void symmetric_matrix_vector(const T alpha, const T* x, const T beta, T* y) const
+            template <typename Tmat = T, typename Tvec = T>
+            void symmetric_matrix_vector(const Tmat alpha, const Tvec* x, const Tvec beta, Tvec* y) const
             {
+                static_assert(std::is_floating_point<Tmat>::value, "error: only floating point numbers are allowed");
+                static_assert(std::is_floating_point<Tvec>::value, "error: only floating point numbers are allowed");
+
                 if (x == nullptr || y == nullptr)
                 {
                     std::cerr << "error in triangular_matrix<..," << BE << "," << BM << ">::symmetric_matrix_vector: any of the pointers is a nullptr" << std::endl;
@@ -1490,17 +1492,21 @@ namespace FP_NAMESPACE
                 }
 
                 if (n == 0) return;
+
+                // some constants
+                static constexpr Tmat fmat_0 = static_cast<Tmat>(0.0);
+                static constexpr Tmat fmat_1 = static_cast<Tmat>(1.0);
                 
-                base_class::blas2_frame([&](const bool transpose, const T alpha, const T* x, T* y)
+                // the kernel uses 'Tmat' for internal data representation
+                base_class::blas2_frame([&](const bool transpose, const Tmat alpha, const Tmat* x, Tmat* y)
                 {
                     // allocate local memory
-                    alignas(alignment) T buffer_a[bs * bs];
+                    alignas(alignment) Tmat buffer_a[bs * bs];
 
                 #if defined(FP_INTEGER_GEMV)
                     // the matrix vector multiplication happens directly on the
                     // integer (fixed point) representation of the matrix
-                    //alignas(alignment) T tmp_y[bs];
-                    alignas(alignment) T tmp_y[2 * bs];
+                    alignas(alignment) Tmat tmp_y[2 * bs];
                     std::vector<T> rescale_p_2(0);
                     if (internal::is_fixed_point_type<BM, BE>::value)
                     {
@@ -1510,7 +1516,7 @@ namespace FP_NAMESPACE
                         rescale_p_2.reserve(n / bs + 1);
                         for (std::size_t i = 0, k = 0; i < n; i += bs, ++k)
                         {
-                            rescale_p_2[k] = f_0;
+                            rescale_p_2[k] = fmat_0;
                             const std::size_t ii_max = std::min(n - i, bs);
                             for (std::size_t ii = 0; ii < ii_max; ++ii)
                             {
@@ -1541,7 +1547,7 @@ namespace FP_NAMESPACE
                                 k += partition.num_elements_a;
                                 
                                 // apply symmetric matrix vector multiply
-                                blas::spmv(cblas_layout, (MT == matrix_type::upper_triangular ? CblasUpper : CblasLower), nn, alpha, &buffer_a[0], &x[i], 1, f_1, &y[i], 1);
+                                blas::spmv(cblas_layout, (MT == matrix_type::upper_triangular ? CblasUpper : CblasLower), nn, alpha, &buffer_a[0], &x[i], 1, fmat_1, &y[i], 1);
                             }
                             // non-diagonal blocks
                             else
@@ -1550,8 +1556,8 @@ namespace FP_NAMESPACE
                                 if (internal::is_fixed_point_type<BM, BE>::value)
                                 {
                                     const float* fptr = reinterpret_cast<const float*>(&compressed_data[k]);
-                                    const T rescale_p_3 = fptr[0];
-                                    const T rescale_p_4 = fptr[1];
+                                    const Tmat rescale_p_3 = fptr[0];
+                                    const Tmat rescale_p_4 = fptr[1];
                                     const fp_type* tmp_a = reinterpret_cast<const fp_type*>(&fptr[2]);
 
                                     // move to the next block
@@ -1561,8 +1567,8 @@ namespace FP_NAMESPACE
                                     // integer gem2v call
                                     blas::gem2v(L, mm, nn, &tmp_a[0], &x[i], &tmp_y[0], &x[j], &tmp_y[bs]);
                                     // ..finalize gem2v call: rescaling
-                                    const T a = rescale_p_4;
-                                    const T b = rescale_p_2[i / bs] * rescale_p_3;
+                                    const Tmat a = rescale_p_4;
+                                    const Tmat b = rescale_p_2[i / bs] * rescale_p_3;
                                     for (std::size_t jj = 0; jj < mm; ++jj)
                                     {
                                         y[j + jj] += alpha * (tmp_y[jj] * a + b);
@@ -1585,8 +1591,8 @@ namespace FP_NAMESPACE
                                     
                                     // apply general matrix vector multiplication
                                     const std::size_t lda = (L == matrix_layout::rowmajor ? nn : mm);
-                                    blas::gemv(cblas_layout, CblasNoTrans, mm, nn, alpha, &buffer_a[0], lda, &x[i], 1, f_1, &y[j], 1);
-                                    blas::gemv(cblas_layout, CblasTrans, mm, nn, alpha, &buffer_a[0], lda, &x[j], 1, f_1, &y[i], 1);
+                                    blas::gemv(cblas_layout, CblasNoTrans, mm, nn, alpha, &buffer_a[0], lda, &x[i], 1, fmat_1, &y[j], 1);
+                                    blas::gemv(cblas_layout, CblasTrans, mm, nn, alpha, &buffer_a[0], lda, &x[j], 1, fmat_1, &y[i], 1);
                                 }
                             }
                         }
@@ -1594,17 +1600,20 @@ namespace FP_NAMESPACE
                 }, false, alpha, x, beta, y);
             }
 
-            void symmetric_matrix_vector(const T alpha, const std::vector<T>& x, const T beta, std::vector<T>& y) const
+            template <typename Tmat = T, typename Tvec = T>
+            void symmetric_matrix_vector(const Tmat alpha, const std::vector<Tvec>& x, const Tvec beta, std::vector<Tvec>& y) const
             {
                 symmetric_matrix_vector(alpha, &x[0], beta, &y[0]);
             }
 
-            void spmv(const T alpha, const T* x, const T beta, T* y) const
+            template <typename Tmat = T, typename Tvec = T>
+            void spmv(const Tmat alpha, const Tvec* x, const Tvec beta, Tvec* y) const
             {
                 symmetric_matrix_vector(alpha, x, beta, y);
             }
 
-            void spmv(const T alpha, const std::vector<T>& x, const T beta, std::vector<T>& y) const
+            template <typename Tmat = T, typename Tvec = T>
+            void spmv(const Tmat alpha, const std::vector<Tvec>& x, const Tvec beta, std::vector<Tvec>& y) const
             {
                 symmetric_matrix_vector(alpha, &x[0], beta, &y[0]);
             }
@@ -1613,12 +1622,18 @@ namespace FP_NAMESPACE
             //!
             //! Solves for y = alpha * A(T) * x.
             //!
+            //! \tparam Tmat data type to be used for the (intermediate) matrix representation
+            //! \tparam Tvec data type of the input and output vectors
             //! \param transpose matrix transposition
             //! \param alpha scaling factor for the matrix
             //! \param x pointer to the output vector
             //! \param y pointer to the input vector
-            void triangular_solve(const bool transpose, const T alpha, T* x, const T* y) const
+            template <typename Tmat = T, typename Tvec = T>
+            void triangular_solve(const bool transpose, const Tmat alpha, Tvec* x, const Tvec* y) const
             {
+                static_assert(std::is_floating_point<Tmat>::value, "error: only floating point numbers are allowed");
+                static_assert(std::is_floating_point<Tvec>::value, "error: only floating point numbers are allowed");
+
                 if (x == nullptr || y == nullptr)
                 {
                     std::cerr << "error in triangular_matrix<..," << BE << "," << BM << ">::solve: any of the pointers is a nullptr" << std::endl;
@@ -1626,15 +1641,21 @@ namespace FP_NAMESPACE
                 }
 
                 if (n == 0) return;
+
+                // some constants
+                static constexpr Tmat fmat_0 = static_cast<Tmat>(0.0);
+                static constexpr Tmat fmat_1 = static_cast<Tmat>(1.0);
+                static constexpr Tvec fvec_0 = static_cast<Tvec>(0.0);
                 
-                base_class::blas2_frame([&](const bool transpose, const T alpha, const T* x, T* y)
+                // the kernel uses 'Tmat' for internal data representation
+                base_class::blas2_frame([&](const bool transpose, const Tmat alpha, const Tmat* x, Tmat* y)
                 {
                     // allocate local memory
-                    alignas(alignment) T buffer_a[bs * bs];
-                    alignas(alignment) T buffer_x[bs];
+                    alignas(alignment) Tmat buffer_a[bs * bs];
+                    alignas(alignment) Tmat buffer_x[bs];
 
                 #if defined(FP_INTEGER_GEMV)
-                    alignas(alignment) T tmp_x[bs];
+                    alignas(alignment) Tmat tmp_x[bs];
                     alignas(alignment) fp_type tmp_y[bs];
                 #endif
 
@@ -1647,7 +1668,7 @@ namespace FP_NAMESPACE
                             const std::size_t mm = std::min(n - bj * bs, bs);
                             for (std::size_t jj = 0; jj < bs; ++jj)
                             {
-                                buffer_x[jj] = f_0;
+                                buffer_x[jj] = fmat_0;
                             }
 
                             for (std::size_t bi = 0; bi < bj; ++bi)
@@ -1660,14 +1681,14 @@ namespace FP_NAMESPACE
                                 {
                                     const std::size_t k = (transpose ? get_offset(bi, bj) : get_offset(bj, bi));
                                     const float* fptr = reinterpret_cast<const float*>(&compressed_data[k]);
-                                    const T rescale_p_3 = fptr[0];
-                                    const T rescale_p_4 = fptr[1];
+                                    const Tmat rescale_p_3 = fptr[0];
+                                    const Tmat rescale_p_4 = fptr[1];
                                     const fp_type* tmp_a = reinterpret_cast<const fp_type*>(&fptr[2]);
                                     
                                     // integer gemv
                                     T rescale_dummy, rescale_p_1, rescale_p_2;
-                                    rescale_p_1 = f_1;
-                                    rescale_p_2 = f_0;
+                                    rescale_p_1 = fmat_1;
+                                    rescale_p_2 = fmat_0;
                                     for (std::size_t ii = 0; ii < nn; ++ii)
                                     {
                                         rescale_p_2 += y[bi * bs + ii];
@@ -1681,8 +1702,8 @@ namespace FP_NAMESPACE
                                         blas::gemv(L, false, mm, nn, &tmp_a[0], &y[bi * bs], &tmp_x[0]);
                                     }
                                     // ..finalize gemv call: rescaling
-                                    const T a = rescale_p_4;
-                                    const T b = rescale_p_2 * rescale_p_3;
+                                    const Tmat a = rescale_p_4;
+                                    const Tmat b = rescale_p_2 * rescale_p_3;
                                     for (std::size_t ii = 0; ii < mm; ++ii)
                                     {
                                         buffer_x[ii] += (tmp_x[ii] * a + b);
@@ -1698,12 +1719,12 @@ namespace FP_NAMESPACE
                                     if (transpose)
                                     {
                                         const std::size_t lda = (L == matrix_layout::rowmajor ? mm : nn);
-                                        blas::gemv(cblas_layout, CblasTrans, nn, mm, f_1, &buffer_a[0], lda, &y[bi * bs], 1, f_1, &buffer_x[0], 1);
+                                        blas::gemv(cblas_layout, CblasTrans, nn, mm, fmat_1, &buffer_a[0], lda, &y[bi * bs], 1, fmat_1, &buffer_x[0], 1);
                                     }
                                     else
                                     {
                                         const std::size_t lda = (L == matrix_layout::rowmajor ? nn : mm);
-                                        blas::gemv(cblas_layout, CblasNoTrans, mm, nn, f_1, &buffer_a[0], lda, &y[bi * bs], 1, f_1, &buffer_x[0], 1);
+                                        blas::gemv(cblas_layout, CblasNoTrans, mm, nn, fmat_1, &buffer_a[0], lda, &y[bi * bs], 1, fmat_1, &buffer_x[0], 1);
                                     }
                                 }
                             }
@@ -1730,7 +1751,7 @@ namespace FP_NAMESPACE
                             const std::size_t mm = std::min(n - bj * bs, bs);
                             for (std::size_t jj = 0; jj < mm; ++jj)
                             {
-                                buffer_x[jj] = f_0;
+                                buffer_x[jj] = fmat_0;
                             }
 
                             const std::size_t i_stop = bj + 1;
@@ -1743,14 +1764,14 @@ namespace FP_NAMESPACE
                                 {
                                     const std::size_t k = (transpose ? get_offset(bi, bj) : get_offset(bj, bi));
                                     const float* fptr = reinterpret_cast<const float*>(&compressed_data[k]);
-                                    const T rescale_p_3 = fptr[0];
-                                    const T rescale_p_4 = fptr[1];
+                                    const Tmat rescale_p_3 = fptr[0];
+                                    const Tmat rescale_p_4 = fptr[1];
                                     const fp_type* tmp_a = reinterpret_cast<const fp_type*>(&fptr[2]);
                                     
                                     // the following gemv call uses alpha=1 internally
                                     T rescale_dummy, rescale_p_1, rescale_p_2;
-                                    rescale_p_1 = f_1;
-                                    rescale_p_2 = f_0;
+                                    rescale_p_1 = fmat_1;
+                                    rescale_p_2 = fmat_0;
                                     for (std::size_t ii = 0; ii < nn; ++ii)
                                     {
                                         rescale_p_2 += y[bi * bs + ii];
@@ -1764,8 +1785,8 @@ namespace FP_NAMESPACE
                                         blas::gemv(L, false, mm, nn, &tmp_a[0], &y[bi * bs], &tmp_x[0]);
                                     }
                                     // ..finalize gemv call: rescaling
-                                    const T a = rescale_p_1 * rescale_p_4;
-                                    const T b = rescale_p_2 * rescale_p_3;
+                                    const Tmat a = rescale_p_1 * rescale_p_4;
+                                    const Tmat b = rescale_p_2 * rescale_p_3;
                                     for (std::size_t ii = 0; ii < mm; ++ii)
                                     {
                                         buffer_x[ii] += (tmp_x[ii] * a + b);
@@ -1782,12 +1803,12 @@ namespace FP_NAMESPACE
                                     if (transpose)
                                     {
                                         const std::size_t lda = (L == matrix_layout::rowmajor ? mm : nn);
-                                        blas::gemv(cblas_layout, CblasTrans, nn, mm, f_1, &buffer_a[0], lda, &y[bi * bs], 1, f_1, &buffer_x[0], 1);
+                                        blas::gemv(cblas_layout, CblasTrans, nn, mm, fmat_1, &buffer_a[0], lda, &y[bi * bs], 1, fmat_1, &buffer_x[0], 1);
                                     }
                                     else
                                     {
                                         const std::size_t lda = (L == matrix_layout::rowmajor ? nn : mm);
-                                        blas::gemv(cblas_layout, CblasNoTrans, mm, nn, f_1, &buffer_a[0], lda, &y[bi * bs], 1, f_1, &buffer_x[0], 1);
+                                        blas::gemv(cblas_layout, CblasNoTrans, mm, nn, fmat_1, &buffer_a[0], lda, &y[bi * bs], 1, fmat_1, &buffer_x[0], 1);
                                     }
                                 }
 
@@ -1817,25 +1838,28 @@ namespace FP_NAMESPACE
                     }
 
                     // scale with 1 / alpha
-                    const T inv_alpha = f_1 / alpha;
+                    const Tmat inv_alpha = fmat_1 / alpha;
                     for (std::size_t j = 0; j < n; ++j)
                     {
                         y[j] *= inv_alpha;
                     }
-                }, transpose, alpha, y, f_0, x);
+                }, transpose, alpha, y, fvec_0, x);
             }
 
-            void triangular_solve(const bool transpose, const T alpha, std::vector<T>& x, const std::vector<T>& y) const
+            template <typename Tmat = T, typename Tvec = T>
+            void triangular_solve(const bool transpose, const Tmat alpha, std::vector<Tvec>& x, const std::vector<Tvec>& y) const
             {
                 triangular_solve(transpose, alpha, &x[0], &y[0]);
             }
 
-            void tpsv(const bool transpose, const T alpha, T* x, const T* y) const
+            template <typename Tmat = T, typename Tvec = T>
+            void tpsv(const bool transpose, const Tmat alpha, Tvec* x, const Tvec* y) const
             {
                 triangular_solve(transpose, alpha, x, y);
             }
 
-            void tpsv(const bool transpose, const T alpha, std::vector<T>& x, const std::vector<T>& y) const
+            template <typename Tmat = T, typename Tvec = T>
+            void tpsv(const bool transpose, const Tmat alpha, std::vector<Tvec>& x, const std::vector<Tvec>& y) const
             {
                 triangular_solve(transpose, alpha, &x[0], &y[0]);
             }

@@ -28,13 +28,13 @@ constexpr std::size_t warmup = 0;
 constexpr std::size_t measurement = 1;
 #endif
 
-void kernel(const real_t alpha, const bool transpose,
+void kernel(const mat_t alpha, const bool transpose,
     const std::size_t n,
     const std::vector<std::vector<real_t>>& a,
     const std::vector<std::vector<fp_matrix>>& a_compressed,
-    const std::vector<std::vector<real_t>>& x_ref,
-    std::vector<std::vector<real_t>>& x,
-    std::vector<std::vector<real_t>>& y,
+    const std::vector<std::vector<vec_t>>& x_ref,
+    std::vector<std::vector<vec_t>>& x,
+    std::vector<std::vector<vec_t>>& y,
     const bool use_blas = false);
 
 int main(int argc, char** argv)
@@ -64,7 +64,8 @@ int main(int argc, char** argv)
 
     // create matrices and vectors
     const std::size_t max_threads = omp_get_max_threads();
-    std::vector<std::vector<real_t>> a(num_matrices), x(num_matrices), x_ref(num_matrices), y(num_matrices);
+    std::vector<std::vector<real_t>> a(num_matrices);
+    std::vector<std::vector<vec_t>> x(num_matrices), x_ref(num_matrices), y(num_matrices);
     std::vector<std::vector<fp_matrix>> a_compressed(max_threads);
     
     #pragma omp parallel
@@ -123,12 +124,12 @@ int main(int argc, char** argv)
 
 #if defined(BENCHMARK)
     // parameters for the matrix vector multiplication
-    const real_t alpha = static_cast<real_t>(1.0);
+    const mat_t alpha = static_cast<mat_t>(1.0);
     const bool transpose = transpose_benchmark;
     kernel(alpha, transpose, n, a, a_compressed, x_ref, x, y, use_blas);
 #else
     {
-        const real_t alpha = static_cast<real_t>(1.0);
+        const mat_t alpha = static_cast<mat_t>(1.0);
         const bool transpose = false;
         kernel(alpha, transpose, n, a, a_compressed, x_ref, x, y, use_blas);
         {
@@ -137,7 +138,7 @@ int main(int argc, char** argv)
         }
     }
     {
-        const real_t alpha = static_cast<real_t>(2.0);
+        const mat_t alpha = static_cast<mat_t>(2.0);
         const bool transpose = false;
         kernel(alpha, transpose, n, a, a_compressed, x_ref, x, y, use_blas);
         {
@@ -146,7 +147,7 @@ int main(int argc, char** argv)
         }
     }
     {
-        const real_t alpha = static_cast<real_t>(-0.23);
+        const mat_t alpha = static_cast<mat_t>(-0.23);
         const bool transpose = false;
         kernel(alpha, transpose, n, a, a_compressed, x_ref, x, y, use_blas);
         {
@@ -155,7 +156,7 @@ int main(int argc, char** argv)
         }
     }
     {
-        const real_t alpha = static_cast<real_t>(-3.46);
+        const mat_t alpha = static_cast<mat_t>(-3.46);
         const bool transpose = false;
         kernel(alpha, transpose, n, a, a_compressed, x_ref, x, y, use_blas);
         {
@@ -168,13 +169,13 @@ int main(int argc, char** argv)
     return 0;
 }
 
-void kernel(const real_t alpha, const bool transpose,
+void kernel(const mat_t alpha, const bool transpose,
     const std::size_t n,
     const std::vector<std::vector<real_t>>& a,
     const std::vector<std::vector<fp_matrix>>& a_compressed,
-    const std::vector<std::vector<real_t>>& x_ref,
-    std::vector<std::vector<real_t>>& x,
-    std::vector<std::vector<real_t>>& y,
+    const std::vector<std::vector<vec_t>>& x_ref,
+    std::vector<std::vector<vec_t>>& x,
+    std::vector<std::vector<vec_t>>& y,
     const bool use_blas)
 {
     // print some information
@@ -183,7 +184,7 @@ void kernel(const real_t alpha, const bool transpose,
     // reference computation
     for (std::size_t k = 0; k < a.size(); ++k)
     {
-        fw::blas::gemv(layout, (transpose ? CblasTrans : CblasNoTrans), n, n, alpha, &a[k][0], n, &x_ref[k][0], 1, static_cast<real_t>(0.0), &y[k][0], 1);
+        blas_matrix_vector(transpose, n, n, alpha, a[k], x_ref[k], static_cast<vec_t>(0.0), y[k]);
     }
 
     if (use_blas)
