@@ -941,7 +941,7 @@ namespace FP_NAMESPACE
 
                 for (std::size_t i = 0; i < n; ++i)
                 {
-                    out[i] = ptr_in[i] * b + (b * 0.5 + a);
+                    out[i] = static_cast<float>(ptr_in[i]) * b + (b * 0.5F + a);
                 }
             }
         }
