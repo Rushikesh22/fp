@@ -4,6 +4,7 @@
 // (See accompanying file LICENSE)
 
 #include <triangular_solve_kernel.hpp>
+#include <omp.h>
 
 #include "general_matrix_vector_kernel_blas.cpp"
 
