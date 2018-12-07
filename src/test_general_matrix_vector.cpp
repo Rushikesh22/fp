@@ -206,8 +206,7 @@ void kernel(const mat_t alpha, const vec_t beta, const bool transpose,
     }
 
     // own implementation
-    double time_start = 0.0;
-    double time_stop = 0.0;
+    double time = 0.0;
 
     #pragma omp parallel
     {
@@ -238,11 +237,8 @@ void kernel(const mat_t alpha, const vec_t beta, const bool transpose,
         }
 
         #pragma omp barrier
-        #pragma omp master
-        {
-            time_start = omp_get_wtime();
-        }
 
+        double time_accumulated = 0.0;
         for (std::size_t l = 0; l < measurement; ++l)
         {
             if (use_blas)
@@ -250,29 +246,26 @@ void kernel(const mat_t alpha, const vec_t beta, const bool transpose,
                 #pragma omp for
                 for (std::size_t k = 0; k < a.size(); ++k)
                 {
-                    blas_matrix_vector(transpose, m, n, alpha, a[k], x[k], beta, y[k]);
+                    time_accumulated += blas_matrix_vector(transpose, m, n, alpha, a[k], x[k], beta, y[k]);
                 }
             }
             else
             {
                 for (std::size_t k = 0; k < a_compressed[thread_id].size(); ++k)
                 {
-                    fp_matrix_vector(transpose, alpha, a_compressed[thread_id][k], x[k_offset + k], beta, y[k_offset + k]);
+                    time_accumulated += fp_matrix_vector(transpose, alpha, a_compressed[thread_id][k], x[k_offset + k], beta, y[k_offset + k]);
                 }
             }
 
         }
 
-        #pragma omp barrier
-        #pragma omp master
-        {
-            time_stop = omp_get_wtime();
-        }
+        #pragma omp atomic
+        time += time_accumulated;
     }
 
 #if defined(BENCHMARK)
     // output some metrics
-    const double gflops = measurement * a.size() * 2 * m * n / (time_stop - time_start) * 1.0E-9;
+    const double gflops = measurement * a.size() * 2 * m * n / (time / omp_get_max_threads()) * 1.0E-9;
     std::cout << "gflops: " << gflops << std::endl;
 #else
     // correctness

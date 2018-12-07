@@ -14,7 +14,7 @@
 //using real_t = float;
 using real_t = float;
 using vec_t = double;
-using mat_t = double;
+using mat_t = float;
 
 // number of bits to be used for exponent and mantissa
 #if defined(_BE)
@@ -49,10 +49,10 @@ using fp_matrix = typename fw::blas::triangular_matrix<real_t, L, fw::blas::matr
 #endif
 
 // prototypes
-void blas_matrix_vector(const bool transpose, const std::size_t m, const std::size_t n, const mat_t alpha, const std::vector<real_t>& a, const std::vector<vec_t>& x, const vec_t beta, std::vector<vec_t>& y);
+#include "general_matrix_vector_kernel_blas.hpp"
 
-void blas_triangular_matrix_vector(const bool transpose, const std::size_t n, const mat_t alpha, const std::vector<real_t>& a, const std::vector<vec_t>& x, const vec_t beta, std::vector<vec_t>& y, const bool symmetric = false);
+double blas_triangular_matrix_vector(const bool transpose, const std::size_t n, const mat_t alpha, const std::vector<real_t>& a, const std::vector<vec_t>& x, const vec_t beta, std::vector<vec_t>& y, const bool symmetric = false);
 
-void fp_triangular_matrix_vector(const bool transpose, const mat_t alpha, const fp_matrix& a, const std::vector<vec_t>& x, const vec_t beta, std::vector<vec_t>& y, const bool symmetric = false);
+double fp_triangular_matrix_vector(const bool transpose, const mat_t alpha, const fp_matrix& a, const std::vector<vec_t>& x, const vec_t beta, std::vector<vec_t>& y, const bool symmetric = false);
 
 #endif
