@@ -1057,11 +1057,19 @@ namespace FP_NAMESPACE
         };
 
         template <typename T>
-        struct is_fp_type<fp_type<T>>
+        struct is_fp_type<fp_type<T, 52, 11>>
         {
-            // standard 'double' and 'float' type
+            // 'double' type
             static constexpr bool value = true;
         };
+
+        template <typename T>
+        struct is_fp_type<fp_type<T, 23, 8>>
+        {
+            // 'float' type
+            static constexpr bool value = true;
+        };
+
 
         template <typename T>
         struct is_fp_type<fp_type<T, 7, 8>>
