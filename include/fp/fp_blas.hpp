@@ -175,7 +175,7 @@ namespace FP_NAMESPACE
             {
                 if (data == nullptr)
                 {
-                    std::cerr << "error in matrix_base<..," << BE << "," << BM << ">::matrix_base: pointer is a nullptr" << std::endl;
+                    std::cerr << "error in matrix_base<..," << BM << "," << BE << ">::matrix_base: pointer is a nullptr" << std::endl;
                     throw std::exception();
                 }
             }
@@ -196,7 +196,7 @@ namespace FP_NAMESPACE
             {
                 if (data == nullptr)
                 {
-                    std::cerr << "error in matrix_base<..," << BE << "," << BM << ">::matrix_base: pointer is a nullptr" << std::endl;
+                    std::cerr << "error in matrix_base<..," << BM << "," << BE << ">::matrix_base: pointer is a nullptr" << std::endl;
                     throw std::exception();
                 }
             }
@@ -217,7 +217,7 @@ namespace FP_NAMESPACE
             {
                 if (data == nullptr || compressed_data == nullptr)
                 {
-                    std::cerr << "error in matrix_base<..," << BE << "," << BM << ">::compress: any of the pointers is a nullptr" << std::endl;
+                    std::cerr << "error in matrix_base<..," << BM << "," << BE << ">::compress: any of the pointers is a nullptr" << std::endl;
                     return 0;
                 }
 
@@ -323,7 +323,7 @@ namespace FP_NAMESPACE
                 const ptrdiff_t result = ptr - compressed_data;
                 if (result != partition.num_elements)
                 {
-                    std::cerr << "error in matrix_base<..," << BE << "," << BM << ">::compress: out of bounds" << std::endl;
+                    std::cerr << "error in matrix_base<..," << BM << "," << BE << ">::compress: out of bounds" << std::endl;
                 }
 
                 return result;
@@ -346,7 +346,7 @@ namespace FP_NAMESPACE
             {
                 if (data == nullptr || compressed_data == nullptr)
                 {
-                    std::cerr << "error in matrix_base<..," << BE << "," << BM << ">::decompress: any of the pointers is a nullptr" << std::endl;
+                    std::cerr << "error in matrix_base<..," << BM << "," << BE << ">::decompress: any of the pointers is a nullptr" << std::endl;
                     return 0;
                 }
 
@@ -443,7 +443,7 @@ namespace FP_NAMESPACE
                 const ptrdiff_t result = ptr - compressed_data;
                 if (result != partition.num_elements)
                 {
-                    std::cerr << "error in matrix_base<..," << BE << "," << BM << ">::decompress: out of bounds" << std::endl;
+                    std::cerr << "error in matrix_base<..," << BM << "," << BE << ">::decompress: out of bounds" << std::endl;
                 }
 
                 return result;
@@ -727,7 +727,7 @@ namespace FP_NAMESPACE
                     }
                     else
                     {
-                        std::cerr << "error in matrix<..," << BE << "," << BM << ">::matrix: external pointer type does not match fp_type" << std::endl;
+                        std::cerr << "error in matrix<..," << BM << "," << BE << ">::matrix: external pointer type does not match fp_type" << std::endl;
                     }
                 }
             }
@@ -774,7 +774,7 @@ namespace FP_NAMESPACE
             {
                 if (data == nullptr || compressed_data == nullptr)
                 {
-                    std::cerr << "error in matrix<..," << BE << "," << BM << ">::compress: any of the pointers is a nullptr" << std::endl;
+                    std::cerr << "error in matrix<..," << BM << "," << BE << ">::compress: any of the pointers is a nullptr" << std::endl;
                     return 0;
                 }
     
@@ -800,7 +800,7 @@ namespace FP_NAMESPACE
             {
                 if (data == nullptr || compressed_data == nullptr)
                 {
-                    std::cerr << "error in matrix<..," << BE << "," << BM << ">::decompress: any of the pointers is a nullptr" << std::endl;
+                    std::cerr << "error in matrix<..," << BM << "," << BE << ">::decompress: any of the pointers is a nullptr" << std::endl;
                     return 0;
                 }
 
@@ -821,7 +821,7 @@ namespace FP_NAMESPACE
             {
                 if (data == nullptr)
                 {
-                    std::cerr << "error in matrix<..," << BE << "," << BM << ">::decompress: pointers is a nullptr" << std::endl;
+                    std::cerr << "error in matrix<..," << BM << "," << BE << ">::decompress: pointers is a nullptr" << std::endl;
                     return 0;
                 }
 
@@ -875,7 +875,7 @@ namespace FP_NAMESPACE
 
                 if (x == nullptr || y == nullptr)
                 {
-                    std::cerr << "error in matrix<..," << BE << "," << BM << ">::matrix_vector: any of the pointers is a nullptr" << std::endl;
+                    std::cerr << "error in matrix<..," << BM << "," << BE << ">::matrix_vector: any of the pointers is a nullptr" << std::endl;
                     return;
                 }
 
@@ -1152,7 +1152,7 @@ namespace FP_NAMESPACE
                     }
                     else
                     {
-                        std::cerr << "error in triangular_matrix<..," << BE << "," << BM << ">::triangular_matrix: external pointer type does not match fp_type" << std::endl;
+                        std::cerr << "error in triangular_matrix<..," << BM << "," << BE << ">::triangular_matrix: external pointer type does not match fp_type" << std::endl;
                     }
                 }
             }
@@ -1198,7 +1198,7 @@ namespace FP_NAMESPACE
             {
                 if (data == nullptr || compressed_data == nullptr)
                 {
-                    std::cerr << "error in triangular_matrix<..," << BE << "," << BM << ">::compress: any of the pointers is a nullptr" << std::endl;
+                    std::cerr << "error in triangular_matrix<..," << BM << "," << BE << ">::compress: any of the pointers is a nullptr" << std::endl;
                     return 0;
                 }
                 
@@ -1223,7 +1223,7 @@ namespace FP_NAMESPACE
             {
                 if (data == nullptr || compressed_data == nullptr)
                 {
-                    std::cerr << "error in triangular_matrix<..," << BE << "," << BM << ">::decompress: any of the pointers is a nullptr" << std::endl;
+                    std::cerr << "error in triangular_matrix<..," << BM << "," << BE << ">::decompress: any of the pointers is a nullptr" << std::endl;
                     return 0;
                 }
 
@@ -1253,7 +1253,7 @@ namespace FP_NAMESPACE
             {
                 if (data == nullptr)
                 {
-                    std::cerr << "error in triangular_matrix<..," << BE << "," << BM << ">::decompress: pointers is a nullptr" << std::endl;
+                    std::cerr << "error in triangular_matrix<..," << BM << "," << BE << ">::decompress: pointers is a nullptr" << std::endl;
                     return 0;
                 }
 
@@ -1317,7 +1317,7 @@ namespace FP_NAMESPACE
 
                 if (x == nullptr || y == nullptr)
                 {
-                    std::cerr << "error in triangular_matrix<..," << BE << "," << BM << ">::matrix_vector: any of the pointers is a nullptr" << std::endl;
+                    std::cerr << "error in triangular_matrix<..," << BM << "," << BE << ">::matrix_vector: any of the pointers is a nullptr" << std::endl;
                     return;
                 }
 
@@ -1487,7 +1487,7 @@ namespace FP_NAMESPACE
 
                 if (x == nullptr || y == nullptr)
                 {
-                    std::cerr << "error in triangular_matrix<..," << BE << "," << BM << ">::symmetric_matrix_vector: any of the pointers is a nullptr" << std::endl;
+                    std::cerr << "error in triangular_matrix<..," << BM << "," << BE << ">::symmetric_matrix_vector: any of the pointers is a nullptr" << std::endl;
                     return;
                 }
 
@@ -1636,7 +1636,7 @@ namespace FP_NAMESPACE
 
                 if (x == nullptr || y == nullptr)
                 {
-                    std::cerr << "error in triangular_matrix<..," << BE << "," << BM << ">::solve: any of the pointers is a nullptr" << std::endl;
+                    std::cerr << "error in triangular_matrix<..," << BM << "," << BE << ">::solve: any of the pointers is a nullptr" << std::endl;
                     return;
                 }
 
