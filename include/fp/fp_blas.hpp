@@ -69,7 +69,7 @@ namespace FP_NAMESPACE
         template <typename T, matrix_layout L = matrix_layout::rowmajor, std::uint32_t BM = ieee754_fp<T>::bm, std::uint32_t BE = ieee754_fp<T>::be>
         class matrix_base
         {
-            static_assert(std::is_floating_point<T>::value, "error: only floating point numbers are allowed");
+            static_assert(std::is_same<T, double>::value || std::is_same<T, float>::value, "error: only 'double' or 'float' are allowed");
 
         public:
 
@@ -466,8 +466,8 @@ namespace FP_NAMESPACE
             template <typename F, typename Tmat = T, typename Tvec = T>
             void blas2_frame(const F& kernel, const bool transpose, const Tmat alpha, const Tvec* x, const Tvec beta, Tvec* y) const
             {
-                static_assert(std::is_floating_point<Tmat>::value, "error: only floating point numbers are allowed");
-                static_assert(std::is_floating_point<Tvec>::value, "error: only floating point numbers are allowed");
+                static_assert(std::is_same<Tmat, double>::value || std::is_same<Tmat, float>::value, "error: only 'double' or 'float' are allowed");
+                static_assert(std::is_same<Tvec, double>::value || std::is_same<Tvec, float>::value, "error: only 'double' or 'float' are allowed");
 
                 if (n == 0 || m == 0) return;
 
@@ -624,7 +624,7 @@ namespace FP_NAMESPACE
         template <typename T, matrix_layout L = matrix_layout::rowmajor, std::uint32_t BM = ieee754_fp<T>::bm, std::uint32_t BE = ieee754_fp<T>::be>
         class matrix : public matrix_base<T, L, BM, BE>
         {
-            static_assert(std::is_floating_point<T>::value, "error: only floating point numbers are allowed");
+            static_assert(std::is_same<T, double>::value || std::is_same<T, float>::value, "error: only 'double' or 'float' are allowed");
 
             using this_class = matrix<T, L, BM, BE>;
             using base_class = matrix_base<T, L, BM, BE>;
@@ -870,8 +870,8 @@ namespace FP_NAMESPACE
             template <typename Tmat = T, typename Tvec = T>
             void matrix_vector_kernel(const bool transpose, const Tmat alpha, const Tvec* x, const Tvec beta, Tvec* y) const
             {
-                static_assert(std::is_floating_point<Tmat>::value, "error: only floating point numbers are allowed");
-                static_assert(std::is_floating_point<Tvec>::value, "error: only floating point numbers are allowed");
+                static_assert(std::is_same<Tmat, double>::value || std::is_same<Tmat, float>::value, "error: only 'double' or 'float' are allowed");
+                static_assert(std::is_same<Tvec, double>::value || std::is_same<Tvec, float>::value, "error: only 'double' or 'float' are allowed");
 
                 if (x == nullptr || y == nullptr)
                 {
@@ -1007,7 +1007,7 @@ namespace FP_NAMESPACE
         template <typename T, matrix_layout L = matrix_layout::rowmajor, matrix_type MT = matrix_type::upper_triangular, std::uint32_t BM = ieee754_fp<T>::bm, std::uint32_t BE = ieee754_fp<T>::be>
         class triangular_matrix : public matrix_base<T, L, BM, BE>
         {
-            static_assert(std::is_floating_point<T>::value, "error: only floating point numbers are allowed");
+            static_assert(std::is_same<T, double>::value || std::is_same<T, float>::value, "error: only 'double' or 'float' are allowed");
             static_assert(MT == matrix_type::upper_triangular || MT == matrix_type::lower_triangular, "error: this should be a triangular matrix");
 
             using this_class = triangular_matrix<T, L, MT, BM, BE>;
@@ -1312,8 +1312,8 @@ namespace FP_NAMESPACE
             template <typename Tmat = T, typename Tvec = T>
             void matrix_vector_kernel(const bool transpose, const Tmat alpha, const Tvec* x, const Tvec beta, Tvec* y) const
             {
-                static_assert(std::is_floating_point<Tmat>::value, "error: only floating point numbers are allowed");
-                static_assert(std::is_floating_point<Tvec>::value, "error: only floating point numbers are allowed");
+                static_assert(std::is_same<Tmat, double>::value || std::is_same<Tmat, float>::value, "error: only 'double' or 'float' are allowed");
+                static_assert(std::is_same<Tvec, double>::value || std::is_same<Tvec, float>::value, "error: only 'double' or 'float' are allowed");
 
                 if (x == nullptr || y == nullptr)
                 {
@@ -1482,8 +1482,8 @@ namespace FP_NAMESPACE
             template <typename Tmat = T, typename Tvec = T>
             void symmetric_matrix_vector(const Tmat alpha, const Tvec* x, const Tvec beta, Tvec* y) const
             {
-                static_assert(std::is_floating_point<Tmat>::value, "error: only floating point numbers are allowed");
-                static_assert(std::is_floating_point<Tvec>::value, "error: only floating point numbers are allowed");
+                static_assert(std::is_same<Tmat, double>::value || std::is_same<Tmat, float>::value, "error: only 'double' or 'float' are allowed");
+                static_assert(std::is_same<Tvec, double>::value || std::is_same<Tvec, float>::value, "error: only 'double' or 'float' are allowed");
 
                 if (x == nullptr || y == nullptr)
                 {
@@ -1631,8 +1631,8 @@ namespace FP_NAMESPACE
             template <typename Tmat = T, typename Tvec = T>
             void triangular_solve(const bool transpose, const Tmat alpha, Tvec* x, const Tvec* y) const
             {
-                static_assert(std::is_floating_point<Tmat>::value, "error: only floating point numbers are allowed");
-                static_assert(std::is_floating_point<Tvec>::value, "error: only floating point numbers are allowed");
+                static_assert(std::is_same<Tmat, double>::value || std::is_same<Tmat, float>::value, "error: only 'double' or 'float' are allowed");
+                static_assert(std::is_same<Tvec, double>::value || std::is_same<Tvec, float>::value, "error: only 'double' or 'float' are allowed");
 
                 if (x == nullptr || y == nullptr)
                 {

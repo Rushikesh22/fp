@@ -343,7 +343,7 @@ namespace FP_NAMESPACE
         {
             using namespace internal;
 
-            static_assert(std::is_floating_point<T>::value, "error: only floating numbers are allowed");
+            static_assert(std::is_same<T, double>::value || std::is_same<T, float>::value, "error: only 'double' or 'float' are allowed");
             static_assert(BE > 0, "error: cannot compress to fixed point");
 
             if (n == 0) return;
@@ -451,7 +451,7 @@ namespace FP_NAMESPACE
         {
             using namespace internal;
 
-            static_assert(std::is_floating_point<T>::value, "error: only floating numbers are allowed");
+            static_assert(std::is_same<T, double>::value || std::is_same<T, float>::value, "error: only 'double' or 'float' are allowed");
             static_assert(BE > 0, "error: cannot decompress from fixed point");
 
             if (n == 0) return;
@@ -618,8 +618,8 @@ namespace FP_NAMESPACE
             template <typename T, typename TT>
             constexpr bool specialization_available()
             {
-                constexpr bool double_or_float_to_uint8 = std::is_floating_point<T>::value && std::is_same<TT, std::uint8_t>::value;
-                constexpr bool uint8_to_double_or_float = std::is_same<T, std::uint8_t>::value && std::is_floating_point<TT>::value;
+                constexpr bool double_or_float_to_uint8 = (std::is_same<T, double>::value || std::is_same<T, float>::value) && std::is_same<TT, std::uint8_t>::value;
+                constexpr bool uint8_to_double_or_float = std::is_same<T, std::uint8_t>::value && (std::is_same<TT, double>::value || std::is_same<TT, float>::value);
                 constexpr bool uint8_to_int32 = std::is_same<T, std::uint8_t>::value && std::is_same<T, std::int32_t>::value;
                 constexpr bool uint8_to_int16 = std::is_same<T, std::uint8_t>::value && std::is_same<T, std::int16_t>::value;
                 return double_or_float_to_uint8 || uint8_to_double_or_float || uint8_to_int32 || uint8_to_int16;
@@ -643,7 +643,7 @@ namespace FP_NAMESPACE
             std::cerr << "error: recode_simd_intrinsics() is not implemented for these data types" << std::endl;
         }
 
-        template <typename T, typename TT, typename X = typename std::enable_if<std::is_floating_point<T>::value>::type, typename Y = typename std::enable_if<std::is_same<TT, std::uint8_t>::value>::type>
+        template <typename T, typename TT, typename X = typename std::enable_if<std::is_same<T, double>::value || std::is_same<T, float>::value>::type, typename Y = typename std::enable_if<std::is_same<TT, std::uint8_t>::value>::type>
         inline void recode_simd_intrinsics(const T* in, std::uint8_t* out, const std::size_t n, const float a, const float b, const X* dummy = nullptr)
         {
             if (!std::is_same<T, double>::value && !std::is_same<T, float>::value)
@@ -723,7 +723,7 @@ namespace FP_NAMESPACE
             }
         }
 
-        template <typename T, typename TT, typename X = typename std::enable_if<std::is_same<T, std::uint8_t>::value>::type, typename Y = typename std::enable_if<std::is_floating_point<TT>::value>::type>
+        template <typename T, typename TT, typename X = typename std::enable_if<std::is_same<T, std::uint8_t>::value>::type, typename Y = typename std::enable_if<std::is_same<TT, double>::value || std::is_same<TT, float>::value>::type>
         inline void recode_simd_intrinsics(const T* in, TT* out, const std::size_t n, const float a, const float b, const X* dummy = nullptr)
         {
             if (!std::is_same<TT, double>::value && !std::is_same<TT, float>::value)
@@ -883,7 +883,7 @@ namespace FP_NAMESPACE
         template <typename T, typename TT>
         static void encode_fixed_point_kernel(const T* in, TT* out, const std::size_t n, const T a, const T b)
         {
-            static_assert(std::is_floating_point<T>::value, "error: only floating point numbers are allowed as input");
+            static_assert(std::is_same<T, double>::value || std::is_same<T, float>::value, "error: only 'double' or 'float' are allowed as input");
             static_assert(std::is_integral<TT>::value, "error: only integers are allowed as output");
 
             if (n == 0) return;
@@ -922,7 +922,7 @@ namespace FP_NAMESPACE
         static void decode_fixed_point_kernel(const T* in, TT* out, const std::size_t n)
         {
             static_assert(std::is_integral<T>::value, "error: only integers are allowed as input");
-            static_assert(std::is_floating_point<TT>::value, "error: only floating point numbers are allowed as output");
+            static_assert(std::is_same<TT, double>::value || std::is_same<TT, float>::value, "error: only 'double' or 'float' are allowed as output");
 
             if (n == 0) return;
             
@@ -1037,12 +1037,14 @@ namespace FP_NAMESPACE
     //! \tparam T IEEE754 double or single type
     //! \tparam BM bits mantissa
     //! \tparam BE bits exponent
-    template <typename T, std::uint32_t BM = ieee754_fp<T>::bm, std::uint32_t BE = ieee754_fp<T>::be>
+    template <typename T, std::uint32_t BM = ieee754_fp<T>::bm, std::uint32_t BE = ieee754_fp<T>::be, typename Apply = T>
     struct fp_type
     {
         static_assert(std::is_same<T, double>::value || std::is_same<T, float>::value, "error: only 'double' or 'float' are allowed");
+        static_assert(std::is_same<Apply, double>::value || std::is_same<Apply, float>::value, "error: only 'double' or 'float' are allowed");
 
         using type = T;
+        using type_apply = Apply;
         static constexpr std::uint32_t bm = BM;
         static constexpr std::uint32_t be = BE;
     };
@@ -1058,8 +1060,8 @@ namespace FP_NAMESPACE
             static constexpr bool value = false;
         };
         
-        template <typename T, std::uint32_t BM, std::uint32_t BE>
-        struct is_fp_type<fp_type<T, BM, BE>>
+        template <typename T, std::uint32_t BM, std::uint32_t BE, typename Apply>
+        struct is_fp_type<fp_type<T, BM, BE, Apply>>
         {
             static constexpr bool value = true;
         };
@@ -1090,6 +1092,7 @@ namespace FP_NAMESPACE
         struct extract
         {
             using type = T;
+            using type_apply = T;
             static constexpr std::uint32_t bm = ieee754_fp<type>::bm;
             static constexpr std::uint32_t be = ieee754_fp<type>::be;
         };
@@ -1098,6 +1101,7 @@ namespace FP_NAMESPACE
         struct extract<T, typename std::enable_if<is_fp_type<T>::value && !is_supported_fp_type<T>::value>::type>
         {
             using type = typename T::type;
+            using type_apply = typename T::type_apply;
             static constexpr std::uint32_t bm = ieee754_fp<type>::bm;
             static constexpr std::uint32_t be = ieee754_fp<type>::be;
         };
@@ -1106,6 +1110,7 @@ namespace FP_NAMESPACE
         struct extract<T, typename std::enable_if<is_fp_type<T>::value && is_supported_fp_type<T>::value>::type>
         {
             using type = typename T::type;
+            using type_apply = typename T::type_apply;
             static constexpr std::uint32_t bm = T::bm;
             static constexpr std::uint32_t be = T::be;
         };
