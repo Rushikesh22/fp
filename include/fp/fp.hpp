@@ -240,10 +240,12 @@ namespace FP_NAMESPACE
     {
         static constexpr bool is_supported()
         {
-            using namespace internal;
-
             // which BM and BE parameters are supported?
-            return is_ieee754_fp_type<BM, BE>::value || (BM > 0 && BE > 0 && (BM + BE) < 16) || (BM > 0 && BM <= 16 && BE == 0);
+            // note: this is just w.r.t. the internal representation!
+            constexpr bool is_supported_ieee754_fp_type = internal::is_ieee754_fp_type<BM, BE>::value;
+            constexpr bool is_supported_floating_point_type = !internal::is_fixed_point_type<BM, BE>::value && BE > 0 && (BM + BE) < 16;
+            constexpr bool is_supported_fixed_point_type = internal::is_fixed_point_type<BM, BE>::value && BM > 0 && BM <= 16;
+            return is_supported_ieee754_fp_type || is_supported_floating_point_type || is_supported_fixed_point_type;
         }
 
         static_assert(is_supported(), "error: unsupported <BM, BE> parameters");
@@ -1035,7 +1037,7 @@ namespace FP_NAMESPACE
     //! \tparam T IEEE754 double or single type
     //! \tparam BM bits mantissa
     //! \tparam BE bits exponent
-    template <typename T, std::int32_t BM = ieee754_fp<T>::bm, std::uint32_t BE = ieee754_fp<T>::be>
+    template <typename T, std::uint32_t BM = ieee754_fp<T>::bm, std::uint32_t BE = ieee754_fp<T>::be>
     struct fp_type
     {
         static_assert(std::is_same<T, double>::value || std::is_same<T, float>::value, "error: only 'double' or 'float' are allowed");
@@ -1055,53 +1057,53 @@ namespace FP_NAMESPACE
         {
             static constexpr bool value = false;
         };
-
-        template <typename T>
-        struct is_fp_type<fp_type<T, 52, 11>>
+        
+        template <typename T, std::uint32_t BM, std::uint32_t BE>
+        struct is_fp_type<fp_type<T, BM, BE>>
         {
-            // 'double' type
             static constexpr bool value = true;
         };
-
-        template <typename T>
-        struct is_fp_type<fp_type<T, 23, 8>>
+        
+        //! \brief Test for 'T' being a supported 'fp_type'
+        //!
+        //! \tparam T data type
+        template <typename T, typename Enabled = void>
+        struct is_supported_fp_type
         {
-            // 'float' type
-            static constexpr bool value = true;
+            static constexpr bool value = false;
+        };
+        
+        template <typename T>
+        struct is_supported_fp_type<T, typename std::enable_if<is_fp_type<T>::value>::type>
+        {
+            using type = typename T::type;
+            static constexpr std::uint32_t bm = T::bm;
+            static constexpr std::uint32_t be = T::be;
+            static constexpr std::uint32_t bits_total = bm + be + (be > 0 ? 1 : 0);
+            static constexpr bool value = (bits_total > 0 && bits_total <= (1 + ieee754_fp<type>::bm + ieee754_fp<type>::be));
         };
 
-
-        template <typename T>
-        struct is_fp_type<fp_type<T, 7, 8>>
-        {
-            // truncated float type 'bfloat16'
-            static constexpr bool value = true;
-        };
-
-        template <typename T>
-        struct is_fp_type<fp_type<T, 16, 0>>
-        {
-            // fixed precision 16 bit
-            static constexpr bool value = true;
-        };
-
-        template <typename T>
-        struct is_fp_type<fp_type<T, 8, 0>>
-        {
-            // fixed precision 8 bit
-            static constexpr bool value = true;
-        };
-
-        template <typename T, typename Enabled=void>
+        //! \brief Get fundamental data type and the number of bits in the exponent and mantissa in case of 'T' being a supported 'fp_type'
+        //!
+        //! \tparam T data type
+        template <typename T, typename Enabled = void>
         struct extract
         {
             using type = T;
-            static constexpr std::uint32_t bm = ieee754_fp<T>::bm;
-            static constexpr std::uint32_t be = ieee754_fp<T>::be;
+            static constexpr std::uint32_t bm = ieee754_fp<type>::bm;
+            static constexpr std::uint32_t be = ieee754_fp<type>::be;
         };
 
         template <typename T>
-        struct extract<T, typename std::enable_if<is_fp_type<T>::value>::type>
+        struct extract<T, typename std::enable_if<is_fp_type<T>::value && !is_supported_fp_type<T>::value>::type>
+        {
+            using type = typename T::type;
+            static constexpr std::uint32_t bm = ieee754_fp<type>::bm;
+            static constexpr std::uint32_t be = ieee754_fp<type>::be;
+        };
+
+        template <typename T>
+        struct extract<T, typename std::enable_if<is_fp_type<T>::value && is_supported_fp_type<T>::value>::type>
         {
             using type = typename T::type;
             static constexpr std::uint32_t bm = T::bm;
