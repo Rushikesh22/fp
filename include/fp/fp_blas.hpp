@@ -1863,6 +1863,18 @@ namespace FP_NAMESPACE
             {
                 triangular_solve(transpose, alpha, &x[0], &y[0]);
             }
+
+            template <typename Tmat = T, typename Tvec = T>
+            void tpsv(const bool transpose, const Tmat alpha, std::vector<Tvec>& xy) const
+            {
+                triangular_solve(transpose, alpha, xy, xy);
+            }
+
+            template <typename Tmat = T, typename Tvec = T>
+            void tpsv(const bool transpose, const Tmat alpha, Tvec* xy) const
+            {
+                triangular_solve(transpose, alpha, xy, xy);
+            }
         };
     }
 }
