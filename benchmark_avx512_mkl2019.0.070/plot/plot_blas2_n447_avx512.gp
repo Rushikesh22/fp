@@ -1,4 +1,4 @@
-set terminal epslatex standalone color ', 8' header '\renewcommand{\encodingdefault}{T1}\renewcommand{\familydefault}{phv}\renewcommand{\seriesdefault}{l}\renewcommand{\shapedefault}{n}'
+set terminal epslatex standalone color ', 8' header '\renewcommand{\encodingdefault}{T1}\renewcommand{\familydefault}{phv}\renewcommand{\seriesdefault}{l}\renewcommand{\shapedefault}{n}\usepackage{amssymb}'
 set output 'blas2_n447_avx512.tex'
 
 set size nosquare 1.18, 1.01
@@ -47,7 +47,7 @@ f(x) with lines linestyle 7 axes x1y2 notitle
 unset ylabel
 unset y2label
 
-set xlabel 'block size $\tilde\textsl{\textit{n}}$'
+set xlabel 'block size $m^\square$'
 set size nosquare 0.48, 0.538
 set title '\textbf{spmv (n=447)}' offset 0.0, -0.5
 set origin 0.022, 0.0
