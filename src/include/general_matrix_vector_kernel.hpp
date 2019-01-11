@@ -14,7 +14,7 @@
 //using real_t = float;
 using real_t = double;
 using vec_t = double;
-using mat_t = float;
+using mat_t = double;
 
 // number of bits to be used for exponent and mantissa
 #if defined(_BE)
