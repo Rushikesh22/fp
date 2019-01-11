@@ -96,7 +96,7 @@ int main(int argc, char** argv)
             x[k].reserve(mn);
             for (std::size_t i = 0; i < mn; ++i)
             {
-                x[k][i] = f_scale * (2.0 * rand_r(&seed) / RAND_MAX - 1.0) + f_shift;
+                x[k][i] = 0.9 + 0.2 * rand_r(&seed) / RAND_MAX;
             }
 
             y_ref[k].reserve(mn);
