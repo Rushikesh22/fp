@@ -47,8 +47,11 @@ int main(int argc, char** argv)
     const std::size_t num_matrices = (argc > 3 ? atoi(argv[3]) : num_matrices_default);
     const std::size_t bs = (argc > 4 ? atoi(argv[4]) : bs_default);
     const bool use_blas = (argc > 5 ? (atoi(argv[5]) != 0 ? true : false) : false);
+    const double f_scale = (argc > 6 ? atof(argv[6]) : 1.0);
+    const double f_shift = (argc > 7 ? atof(argv[7]) : 0.0);
 
     std::cout << "matrix multiply: " << m << " x " << n << std::endl;
+    std::cout << "matrix entries in range: " << -1.0 * std::abs(f_scale) + f_shift << " .. " << std::abs(f_scale) + f_shift << std::endl;
     std::cout << "num matrices: " << num_matrices << std::endl;
     std::cout << "block size: " << bs << std::endl;
 
@@ -82,7 +85,7 @@ int main(int argc, char** argv)
             a[k].reserve(m * n);
             for (std::size_t i = 0; i < (m * n); ++i)
             {
-                a[k][i] = 0.9 + 0.2 * rand_r(&seed) / RAND_MAX;
+                a[k][i] = f_scale * (2.0 * rand_r(&seed) / RAND_MAX - 1.0) + f_shift;
             }
 
             std::array<std::size_t, 2> extent({m, n});
@@ -93,7 +96,7 @@ int main(int argc, char** argv)
             x[k].reserve(mn);
             for (std::size_t i = 0; i < mn; ++i)
             {
-                x[k][i] = 0.9 + 0.2 * rand_r(&seed) / RAND_MAX;
+                x[k][i] = f_scale * (2.0 * rand_r(&seed) / RAND_MAX - 1.0) + f_shift;
             }
 
             y_ref[k].reserve(mn);

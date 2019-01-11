@@ -44,8 +44,11 @@ int main(int argc, char** argv)
     const std::size_t num_matrices = (argc > 2 ? atoi(argv[2]) : num_matrices_default);
     const std::size_t bs = (argc > 3 ? atoi(argv[3]) : bs_default);
     const bool use_blas = (argc > 4 ? (atoi(argv[4]) != 0 ? true : false) : false);
+    const double f_scale = (argc > 5 ? atof(argv[5]) : 1.0);
+    const double f_shift = (argc > 6 ? atof(argv[6]) : 0.0);
 
     std::cout << "triangular matrix solve: " << n << " x " << n << " (" << (upper_matrix ? "upper)" : "lower)") << std::endl;
+    std::cout << "matrix entries in range: " << -1.0 * std::abs(f_scale) + f_shift << " .. " << std::abs(f_scale) + f_shift << std::endl;
     std::cout << "num matrices: " << num_matrices << std::endl;
     std::cout << "block size: " << bs << std::endl;
 
@@ -87,14 +90,14 @@ int main(int argc, char** argv)
                     }
                     for (std::size_t i = j; i < n; ++i)
                     {
-                        a[k][fw::blas::idx<L>(j, i, n)] = 0.9 + 0.2 * rand_r(&seed) / RAND_MAX;
+                        a[k][fw::blas::idx<L>(j, i, n)] = f_scale * (2.0 * rand_r(&seed) / RAND_MAX - 1.0) + f_shift;
                     }
                 }
                 else
                 {
                     for (std::size_t i = 0; i <= j; ++i)
                     {
-                        a[k][fw::blas::idx<L>(j, i, n)] = 0.9 + 0.2 * rand_r(&seed) / RAND_MAX;
+                        a[k][fw::blas::idx<L>(j, i, n)] = f_scale * (2.0 * rand_r(&seed) / RAND_MAX - 1.0) + f_shift;
                     }
                     for (std::size_t i = (j + 1); i < n; ++i)
                     {
@@ -106,7 +109,7 @@ int main(int argc, char** argv)
             x_ref[k].reserve(n);
             for (std::size_t i = 0; i < n; ++i)
             {
-                x_ref[k][i] = 0.95 + 0.1 * rand_r(&seed) / RAND_MAX;
+                x_ref[k][i] = 0.9 + 0.2 * rand_r(&seed) / RAND_MAX;
             }
 
             std::array<std::size_t, 1> extent({n});

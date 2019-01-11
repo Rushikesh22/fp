@@ -46,8 +46,11 @@ int main(int argc, char** argv)
     const std::size_t bs = (argc > 3 ? atoi(argv[3]) : bs_default);
     const bool symmetric = (argc > 4 ? (atoi(argv[4]) != 0 ? true : false) : false);
     const bool use_blas = (argc > 5 ? (atoi(argv[5]) != 0 ? true : false) : false);
+    const double f_scale = (argc > 6 ? atof(argv[6]) : 1.0);
+    const double f_shift = (argc > 7 ? atof(argv[7]) : 0.0);
 
     std::cout << "triangular matrix multiply: " << n << " x " << n << " (" << (upper_matrix ? "upper)" : "lower)") << std::endl;
+    std::cout << "matrix entries in range: " << -1.0 * std::abs(f_scale) + f_shift << " .. " << std::abs(f_scale) + f_shift << std::endl;
     std::cout << "num matrices: " << num_matrices << std::endl;
     std::cout << "block size: " << bs << std::endl;
 
@@ -89,14 +92,14 @@ int main(int argc, char** argv)
                     }
                     for (std::size_t i = j; i < n; ++i)
                     {
-                        a[k][fw::blas::idx<L>(j, i, n)] = 0.9 + 0.2 * rand_r(&seed) / RAND_MAX;
+                        a[k][fw::blas::idx<L>(j, i, n)] = f_scale * (2.0 * rand_r(&seed) / RAND_MAX - 1.0) + f_shift;
                     }
                 }
                 else
                 {
                     for (std::size_t i = 0; i <= j; ++i)
                     {
-                        a[k][fw::blas::idx<L>(j, i, n)] = 0.9 + 0.2 * rand_r(&seed) / RAND_MAX;
+                        a[k][fw::blas::idx<L>(j, i, n)] = f_scale * (2.0 * rand_r(&seed) / RAND_MAX - 1.0) + f_shift;
                     }
                     for (std::size_t i = (j + 1); i < n; ++i)
                     {
